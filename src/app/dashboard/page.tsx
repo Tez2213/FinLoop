@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LogOut, UserCircle, Settings, LayoutDashboard, Plus, Eye } from "lucide-react";
+import { LogOut, UserCircle, Settings, LayoutDashboard, Plus, Eye, Users, Calendar, TrendingUp, DollarSign } from "lucide-react";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -12,168 +12,280 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Get user's rooms
+  // Get user's created rooms
   const { data: userRooms } = await supabase
     .from('rooms')
     .select('id, name, description, created_at')
     .eq('admin_id', user.id)
     .order('created_at', { ascending: false });
 
-  const userName = user.user_metadata?.name || user.email?.split('@')[0] || 'User';
+  // Get rooms where user is a member
+  const { data: memberRooms } = await supabase
+    .from('room_members')
+    .select(`
+      room_id,
+      role,
+      joined_at,
+      rooms (
+        id,
+        name,
+        description,
+        created_at,
+        admin_id
+      )
+    `)
+    .eq('user_id', user.id)
+    .order('joined_at', { ascending: false });
+
+  // Get user profile
+  const { data: profile } = await supabase
+    .from('profile')
+    .select('full_name, avatar_url')
+    .eq('id', user.id)
+    .single();
+
+  const userName = profile?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User';
+  const totalRooms = (userRooms?.length || 0) + (memberRooms?.length || 0);
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col">
-      {/* Top Navigation Bar */}
-      <nav className="bg-white shadow-md sticky top-0 z-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Enhanced Navigation Bar */}
+      <nav className="bg-white/80 backdrop-blur-md shadow-lg border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo/Brand */}
+            {/* Enhanced Logo */}
             <div className="flex-shrink-0">
-              <Link href="/dashboard" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-slate-600 to-slate-800 rounded-lg flex items-center justify-center">
-                  <LayoutDashboard className="w-5 h-5 text-white" />
+              <Link href="/dashboard" className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <LayoutDashboard className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-xl font-bold text-slate-800">
-                  FinLoop
-                </span>
+                <div>
+                  <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    FinLoop
+                  </span>
+                  <div className="text-xs text-slate-500">Dashboard</div>
+                </div>
               </Link>
             </div>
 
-            {/* User Menu / Logout */}
-            <div className="flex items-center">
-              <span className="text-sm text-slate-600 mr-3 hidden sm:block">
-                Welcome, {userName}
-              </span>
-              <form action="/auth/signout" method="post">
-                <button 
-                  type="submit"
-                  className="p-2 rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-colors"
-                  aria-label="Sign out"
+            {/* Enhanced User Menu */}
+            <div className="flex items-center space-x-4">
+              <div className="hidden sm:block text-right">
+                <div className="text-sm font-medium text-slate-800">Welcome back!</div>
+                <div className="text-xs text-slate-500">{userName}</div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Link
+                  href="/dashboard/profile"
+                  className="p-2 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all duration-200"
                 >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </form>
+                  <UserCircle className="w-6 h-6" />
+                </Link>
+                <form action="/auth/signout" method="post">
+                  <button 
+                    type="submit"
+                    className="p-2 rounded-full text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="w-5 h-5" />
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Main Content Area */}
+      {/* Enhanced Main Content */}
       <main className="flex-1 p-4 sm:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Welcome Header */}
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">
-              Hello, {userName}!
-            </h1>
-            <p className="text-slate-600">
-              Welcome to your FinLoop dashboard. Manage your expense rooms and track your finances.
-            </p>
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Enhanced Welcome Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl shadow-xl text-white p-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-bold mb-2">
+                  Welcome back, {userName}! 👋
+                </h1>
+                <p className="text-blue-100 text-lg">
+                  Ready to manage your expenses? You're in {totalRooms} room{totalRooms !== 1 ? 's' : ''}.
+                </p>
+              </div>
+              <div className="hidden lg:block">
+                <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center">
+                  <DollarSign className="w-12 h-12 text-white" />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Dashboard Cards/Sections */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* User Profile Card */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <div className="flex items-center mb-4">
-                <UserCircle className="w-8 h-8 text-blue-600 mr-3" />
-                <h2 className="text-xl font-semibold text-slate-700">Your Profile</h2>
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Rooms Created</p>
+                  <p className="text-3xl font-bold text-slate-900">{userRooms?.length || 0}</p>
+                </div>
+                <div className="p-3 bg-blue-100 rounded-lg">
+                  <Plus className="w-6 h-6 text-blue-600" />
+                </div>
               </div>
-              <div className="space-y-2 text-sm text-slate-600">
-                <p><strong>Email:</strong> {user.email}</p>
-                <p><strong>User ID:</strong> <span className="break-all">{user.id}</span></p>
-                <p><strong>Joined:</strong> {new Date(user.created_at).toLocaleDateString()}</p>
-              </div>
-              <Link href="/dashboard/profile" className="mt-4 inline-block text-sm text-blue-600 hover:text-blue-700 font-medium">
-                Edit Profile &rarr;
-              </Link>
             </div>
 
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Member Of</p>
+                  <p className="text-3xl font-bold text-slate-900">{memberRooms?.length || 0}</p>
+                </div>
+                <div className="p-3 bg-green-100 rounded-lg">
+                  <Users className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Total Rooms</p>
+                  <p className="text-3xl font-bold text-slate-900">{totalRooms}</p>
+                </div>
+                <div className="p-3 bg-purple-100 rounded-lg">
+                  <TrendingUp className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Enhanced Dashboard Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Quick Actions Card */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <div className="flex items-center mb-4">
-                <Settings className="w-8 h-8 text-green-600 mr-3" />
-                <h2 className="text-xl font-semibold text-slate-700">Quick Actions</h2>
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+              <div className="flex items-center mb-6">
+                <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                  <Settings className="w-6 h-6 text-blue-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-slate-800">Quick Actions</h2>
               </div>
               <div className="space-y-3">
                 <Link 
                   href="/rooms/create"
-                  className="w-full flex items-center px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                  className="w-full flex items-center px-4 py-3 text-sm text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
+                  <Plus className="w-4 h-4 mr-3" />
                   Create New Expense Room
                 </Link>
                 
-                {userRooms && userRooms.length > 0 ? (
-                  <Link 
-                    href="/dashboard/rooms"
-                    className="w-full flex items-center px-4 py-2 text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    View My Rooms ({userRooms.length})
-                  </Link>
-                ) : (
-                  <div className="w-full flex items-center px-4 py-2 text-sm text-slate-500 bg-slate-50 rounded-md cursor-not-allowed">
-                    <Eye className="w-4 h-4 mr-2" />
-                    No Rooms Created Yet
+                <Link 
+                  href="/dashboard/rooms"
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border"
+                >
+                  <div className="flex items-center">
+                    <Eye className="w-4 h-4 mr-3" />
+                    View All My Rooms
                   </div>
-                )}
+                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                    {totalRooms}
+                  </span>
+                </Link>
                 
                 <Link 
                   href="/dashboard/settings"
-                  className="w-full flex items-center px-4 py-2 text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+                  className="w-full flex items-center px-4 py-3 text-sm text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border"
                 >
-                  <Settings className="w-4 h-4 mr-2" />
+                  <Settings className="w-4 h-4 mr-3" />
                   Account Settings
                 </Link>
               </div>
             </div>
-            
-            {/* My Rooms Overview Card */}
-            <div className="bg-white shadow rounded-lg p-6 md:col-span-2 lg:col-span-1">
-              <h2 className="text-xl font-semibold text-slate-700 mb-4">My Rooms Overview</h2>
+
+            {/* My Created Rooms */}
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+              <h2 className="text-xl font-semibold text-slate-800 mb-6">Rooms I Created</h2>
               
               {userRooms && userRooms.length > 0 ? (
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-600">Total Rooms:</span>
-                    <span className="font-medium text-slate-800">{userRooms.length}</span>
-                  </div>
-                  
-                  <div className="max-h-32 overflow-y-auto space-y-2">
-                    {userRooms.slice(0, 3).map((room) => (
-                      <Link
-                        key={room.id}
-                        href={`/rooms/${room.id}`}
-                        className="block p-2 bg-slate-50 hover:bg-slate-100 rounded text-sm transition-colors"
-                      >
-                        <div className="font-medium text-slate-800 truncate">{room.name}</div>
-                        <div className="text-slate-500 text-xs">
-                          Created {new Date(room.created_at).toLocaleDateString()}
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
+                  {userRooms.slice(0, 3).map((room) => (
+                    <Link
+                      key={room.id}
+                      href={`/rooms/${room.id}`}
+                      className="block p-3 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-lg transition-all duration-200 border border-blue-200"
+                    >
+                      <div className="font-medium text-slate-800 truncate">{room.name}</div>
+                      <div className="text-slate-500 text-xs flex items-center mt-1">
+                        <Calendar className="w-3 h-3 mr-1" />
+                        Created {new Date(room.created_at).toLocaleDateString()}
+                      </div>
+                    </Link>
+                  ))}
                   
                   {userRooms.length > 3 && (
                     <Link 
                       href="/dashboard/rooms"
-                      className="block text-center text-sm text-blue-600 hover:text-blue-700 font-medium pt-2 border-t border-slate-200"
+                      className="block text-center text-sm text-blue-600 hover:text-blue-700 font-medium pt-3 border-t border-slate-200"
                     >
-                      View All Rooms &rarr;
+                      View All {userRooms.length} Rooms →
                     </Link>
                   )}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <div className="text-slate-400 mb-2">No rooms created yet</div>
+                <div className="text-center py-6">
+                  <div className="text-slate-400 mb-3">
+                    <Plus className="w-12 h-12 mx-auto" />
+                  </div>
+                  <p className="text-slate-500 text-sm mb-4">No rooms created yet</p>
                   <Link 
                     href="/rooms/create"
-                    className="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    className="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Create Your First Room
+                    Create First Room
                   </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Member Rooms */}
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+              <h2 className="text-xl font-semibold text-slate-800 mb-6">Rooms I'm In</h2>
+              
+              {memberRooms && memberRooms.length > 0 ? (
+                <div className="space-y-3">
+                  {memberRooms.slice(0, 3).map((member) => (
+                    <Link
+                      key={member.room_id}
+                      href={`/rooms/${member.rooms.id}`}
+                      className="block p-3 bg-gradient-to-r from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 rounded-lg transition-all duration-200 border border-green-200"
+                    >
+                      <div className="font-medium text-slate-800 truncate">{member.rooms.name}</div>
+                      <div className="text-slate-500 text-xs flex items-center justify-between mt-1">
+                        <div className="flex items-center">
+                          <Users className="w-3 h-3 mr-1" />
+                          {member.role}
+                        </div>
+                        <div className="flex items-center">
+                          <Calendar className="w-3 h-3 mr-1" />
+                          Joined {new Date(member.joined_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                  
+                  {memberRooms.length > 3 && (
+                    <Link 
+                      href="/dashboard/rooms"
+                      className="block text-center text-sm text-green-600 hover:text-green-700 font-medium pt-3 border-t border-slate-200"
+                    >
+                      View All {memberRooms.length} Rooms →
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <div className="text-slate-400 mb-3">
+                    <Users className="w-12 h-12 mx-auto" />
+                  </div>
+                  <p className="text-slate-500 text-sm">Not a member of any rooms yet</p>
                 </div>
               )}
             </div>
@@ -181,9 +293,13 @@ export default async function DashboardPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-slate-500 border-t border-slate-200">
-        &copy; {new Date().getFullYear()} FinLoop. All rights reserved.
+      {/* Enhanced Footer */}
+      <footer className="bg-white border-t border-slate-200 py-6 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-slate-500 text-sm">
+            © {new Date().getFullYear()} FinLoop. Made with ❤️ for better expense management.
+          </p>
+        </div>
       </footer>
     </div>
   );

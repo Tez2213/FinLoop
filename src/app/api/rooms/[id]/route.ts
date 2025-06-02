@@ -12,44 +12,68 @@ export async function GET(
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    console.error('Get room auth error:', authError);
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   try {
-    // Fetch room details
-    const { data: roomData, error: roomError } = await supabase
+    // Get room details
+    const { data: room, error: roomError } = await supabase
       .from('rooms')
       .select('*')
       .eq('id', roomId)
       .single();
 
-    if (roomError) {
-      console.error('Error fetching room:', roomError);
+    if (roomError || !room) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    // Fetch room members
-    const { data: membersData, error: membersError } = await supabase
+    // Check if user is a member
+    const { data: memberCheck, error: memberError } = await supabase
+      .from('room_members')
+      .select('role')
+      .eq('room_id', roomId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (memberError || !memberCheck) {
+      return NextResponse.json({ error: 'Access denied - not a room member' }, { status: 403 });
+    }
+
+    // Get all room members (cast to any to bypass type checking)
+    const { data: membersData, error: membersError } = await (supabase as any)
       .from('room_members')
       .select('*')
       .eq('room_id', roomId);
 
     if (membersError) {
       console.error('Error fetching members:', membersError);
-      // Don't fail the whole request if members can't be fetched
+      return NextResponse.json({ error: 'Failed to fetch room members' }, { status: 500 });
     }
 
-    console.log('Room data fetched successfully:', roomData);
-    console.log('Members data:', membersData);
+    // Get profile information for each member
+    const membersWithNames = await Promise.all(
+      (membersData || []).map(async (member: any) => {
+        const { data: profile } = await supabase
+          .from('profile')
+          .select('full_name')
+          .eq('id', member.user_id)
+          .single();
+
+        return {
+          ...member,
+          user_name: profile?.full_name || `User ${member.user_id.substring(0, 8)}...`
+        };
+      })
+    );
 
     return NextResponse.json({
-      room: roomData,
-      members: membersData || []
+      room,
+      members: membersWithNames,
+      userRole: memberCheck.role
     });
 
   } catch (error: any) {
-    console.error('Unexpected error in room fetch:', error);
+    console.error('Unexpected error:', error);
     return NextResponse.json({ 
       error: 'Server error',
       details: error.message 

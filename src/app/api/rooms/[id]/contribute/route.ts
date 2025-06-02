@@ -23,18 +23,29 @@ export async function POST(
     }
 
     // Check if user is a member of this room
-    const { data: memberData, error: memberError } = await supabase
+    const { data: memberCheck, error: memberError } = await supabase
       .from('room_members')
       .select('id')
       .eq('room_id', roomId)
       .eq('user_id', user.id)
       .single();
 
-    if (memberError || !memberData) {
+    if (memberError || !memberCheck) {
       return NextResponse.json({ error: 'Access denied - not a room member' }, { status: 403 });
     }
 
-    // Create transaction record (cast to any to bypass type checking)
+    // Get room details to get admin UPI ID
+    const { data: room, error: roomError } = await supabase
+      .from('rooms')
+      .select('admin_upi_id')
+      .eq('id', roomId)
+      .single();
+
+    if (roomError || !room || !room.admin_upi_id) {
+      return NextResponse.json({ error: 'Room not found or admin UPI ID not configured' }, { status: 404 });
+    }
+
+    // Create PENDING transaction (cast to any to bypass type checking)
     const { data: transaction, error: transactionError } = await (supabase as any)
       .from('transactions')
       .insert({
@@ -42,104 +53,32 @@ export async function POST(
         user_id: user.id,
         type: 'CONTRIBUTION',
         amount: parseFloat(amount),
-        notes: notes || 'Contribution to room fund',
-        status: 'CONFIRMED', // Contributions are automatically confirmed
+        notes: notes?.trim() || 'Fund contribution',
+        status: 'PENDING', // Set as PENDING initially
+        admin_upi_id: room.admin_upi_id,
         transaction_date: new Date().toISOString()
       })
       .select()
       .single();
 
     if (transactionError) {
-      console.error('Error creating contribution transaction:', transactionError);
-      return NextResponse.json({ error: 'Failed to create contribution' }, { status: 500 });
+      console.error('Error creating transaction:', transactionError);
+      return NextResponse.json({ error: 'Failed to create contribution record' }, { status: 500 });
     }
 
-    // Update room fund
-    await updateRoomFund(supabase, roomId);
+    console.log('Contribution submitted for admin approval:', transaction);
 
-    return NextResponse.json({ 
-      message: 'Contribution successful', 
-      transaction 
+    return NextResponse.json({
+      success: true,
+      message: 'Contribution submitted successfully! Waiting for admin approval.',
+      transaction
     });
 
   } catch (error: any) {
-    console.error('Unexpected error in contribution API:', error);
-    return NextResponse.json({ 
+    console.error('Unexpected error in contribution:', error);
+    return NextResponse.json({
       error: 'Server error',
-      details: error.message 
+      details: error.message
     }, { status: 500 });
-  }
-}
-
-// Helper function to update room fund
-async function updateRoomFund(supabase: any, roomId: string) {
-  try {
-    // Get all confirmed transactions for this room (cast to any to bypass type checking)
-    const { data: transactions, error: transactionError } = await (supabase as any)
-      .from('transactions')
-      .select('type, amount, status')
-      .eq('room_id', roomId)
-      .eq('status', 'CONFIRMED');
-
-    if (transactionError) {
-      console.error('Error fetching transactions for fund update:', transactionError);
-      return;
-    }
-
-    // Calculate totals
-    let total_contributions = 0;
-    let total_reimbursements = 0;
-
-    transactions?.forEach((transaction: any) => {
-      if (transaction.type === 'CONTRIBUTION') {
-        total_contributions += transaction.amount;
-      } else if (transaction.type === 'REIMBURSEMENT') {
-        total_reimbursements += transaction.amount;
-      }
-    });
-
-    const current_balance = total_contributions - total_reimbursements;
-
-    // Check if room_funds record exists (cast to any to bypass type checking)
-    const { data: existingFund } = await (supabase as any)
-      .from('room_funds')
-      .select('id')
-      .eq('room_id', roomId)
-      .single();
-
-    if (existingFund) {
-      // Update existing record
-      const { error: updateError } = await (supabase as any)
-        .from('room_funds')
-        .update({
-          total_contributions,
-          total_reimbursements,
-          current_balance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('room_id', roomId);
-
-      if (updateError) {
-        console.error('Error updating room fund:', updateError);
-      }
-    } else {
-      // Create new record
-      const { error: insertError } = await (supabase as any)
-        .from('room_funds')
-        .insert({
-          room_id: roomId,
-          total_contributions,
-          total_reimbursements,
-          current_balance,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-
-      if (insertError) {
-        console.error('Error creating room fund:', insertError);
-      }
-    }
-  } catch (error) {
-    console.error('Error in updateRoomFund:', error);
   }
 }

@@ -84,22 +84,22 @@ export async function POST(
   }
 }
 
-// Helper function to update room fund
+// Update the existing admin-action route to ensure proper fund updates
 async function updateRoomFund(supabase: any, roomId: string) {
   try {
-    // Get all confirmed transactions for this room
+    // Get all CONFIRMED transactions for this room
     const { data: transactions, error: transactionError } = await (supabase as any)
       .from('transactions')
       .select('type, amount, status')
       .eq('room_id', roomId)
-      .eq('status', 'CONFIRMED');
+      .eq('status', 'CONFIRMED'); // Only count confirmed transactions
 
     if (transactionError) {
       console.error('Error fetching transactions for fund update:', transactionError);
       return;
     }
 
-    // Calculate totals
+    // Calculate totals from CONFIRMED transactions only
     let total_contributions = 0;
     let total_reimbursements = 0;
 
@@ -134,6 +134,8 @@ async function updateRoomFund(supabase: any, roomId: string) {
 
       if (updateError) {
         console.error('Error updating room fund:', updateError);
+      } else {
+        console.log(`Room fund updated: Contributions: ₹${total_contributions}, Reimbursements: ₹${total_reimbursements}, Balance: ₹${current_balance}`);
       }
     } else {
       // Create new record
@@ -150,6 +152,8 @@ async function updateRoomFund(supabase: any, roomId: string) {
 
       if (insertError) {
         console.error('Error creating room fund:', insertError);
+      } else {
+        console.log(`Room fund created: Contributions: ₹${total_contributions}, Reimbursements: ₹${total_reimbursements}, Balance: ₹${current_balance}`);
       }
     }
   } catch (error) {

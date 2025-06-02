@@ -42,7 +42,7 @@ export async function POST(
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + expires_in_hours);
 
-    // Create invite record (cast to any to bypass type checking)
+    // Create invite record using room_invites table
     const { data: inviteData, error: inviteError } = await (supabase as any)
       .from('room_invites')
       .insert({
@@ -59,7 +59,8 @@ export async function POST(
     if (inviteError) {
       console.error('Error creating invite:', inviteError);
       return NextResponse.json({ 
-        error: 'Failed to create invite' 
+        error: 'Failed to create invite',
+        details: inviteError.message
       }, { status: 500 });
     }
 

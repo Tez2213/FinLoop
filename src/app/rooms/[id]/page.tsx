@@ -3,8 +3,9 @@
 import { useState, useEffect, MouseEvent as ReactMouseEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { 
-  LayoutDashboard, ArrowLeft, Users, Settings, DollarSign, ListChecks, 
+  LayoutDashboard, ArrowLeft, Users, Settings, DollarSign, Mail, ListChecks, 
   RefreshCw, Copy, X, Edit, LogOut, Info, UserPlus, CreditCard, FileText, CheckCircle, AlertTriangle 
 } from 'lucide-react';
 
@@ -54,6 +55,7 @@ export default function RoomDetailPage() {
   const params = useParams();
   const router = useRouter();
   const roomId = params.id as string;
+  const supabase = createClient();
   
   const [room, setRoom] = useState<Room | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -76,17 +78,34 @@ export default function RoomDetailPage() {
   
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [inviteMode, setInviteMode] = useState<'link' | 'email' | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const fetchCurrentUser = async () => {
     try {
-      const response = await fetch('/api/auth/user'); // Ensure this endpoint exists and returns user data
-      if (response.ok) {
-        const userData = await response.json();
-        setCurrentUser(userData);
-      } else {
-        console.error('Failed to fetch current user, redirecting to login.');
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error || !user) {
+        console.error('Failed to fetch current user:', error);
         router.push('/login');
+        return;
       }
+      
+      // Get user profile for display name
+      const { data: profile } = await supabase
+        .from('profile')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+      
+      setCurrentUser({ 
+        id: user.id, 
+        email: user.email!, 
+        name: profile?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User'
+      });
     } catch (err) {
       console.error('Error fetching current user:', err);
       router.push('/login');
@@ -127,9 +146,28 @@ export default function RoomDetailPage() {
       const response = await fetch(`/api/rooms/${roomId}/transactions`);
       if (response.ok) {
         const data = await response.json();
-        setTransactions(data.transactions || []);
+        
+        // Fetch user names for each transaction
+        const transactionsWithNames = await Promise.all(
+          (data.transactions || []).map(async (tx: Transaction) => {
+            const { data: profile } = await supabase
+              .from('profile')
+              .select('full_name')
+              .eq('id', tx.user_id)
+              .single();
+            
+            return {
+              ...tx,
+              user_name: profile?.full_name || `User ${tx.user_id.substring(0, 8)}...`
+            };
+          })
+        );
+        
+        setTransactions(transactionsWithNames);
       }
-    } catch (err) { console.error('Error fetching transactions:', err); }
+    } catch (err) { 
+      console.error('Error fetching transactions:', err); 
+    }
   };
 
   useEffect(() => {
@@ -151,6 +189,11 @@ export default function RoomDetailPage() {
   const closeModal = () => {
     setActiveModal(null);
     setModalError(null);
+    setInviteCode(null);
+    setInviteMode(null);
+    setInviteEmail('');
+    setInviteMessage('');
+    setEmailSent(false);
     setContributionForm({ amount: '', notes: '' });
     setReimbursementForm({ amount: '', notes: '', merchantUpiId: '', referenceId: '' });
   };
@@ -201,7 +244,7 @@ export default function RoomDetailPage() {
     } catch (err: any) { setModalError(err.message); } finally { setSubmitting(false); }
   };
 
-  const generateInvite = async () => {
+  const generateInvite = async (mode: 'link' | 'email') => {
     if (!isAdmin()) { 
       setModalError('Only admins can create invites'); 
       return; 
@@ -209,6 +252,7 @@ export default function RoomDetailPage() {
     
     setGeneratingInvite(true); 
     setModalError(null);
+    setInviteMode(mode);
     
     try {
       const response = await fetch(`/api/rooms/${roomId}/invite`, {
@@ -232,11 +276,121 @@ export default function RoomDetailPage() {
       setActiveModal('invite');
     } catch (err: any) { 
       setModalError(`Invite generation failed: ${err.message}`); 
+      setInviteMode(null);
     } finally { 
       setGeneratingInvite(false); 
     }
   };
 
+  // Update your sendEmailInvite function in the room page
+const sendEmailInvite = async () => {
+  if (!inviteEmail) return;
+  setSendingEmail(true);
+  setModalError(null);
+  
+  try {
+    const response = await fetch(`/api/rooms/${roomId}/invite/email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: inviteEmail,
+        message: inviteMessage,
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to send email invite');
+    }
+    
+    setEmailSent(true);
+    
+    // Show appropriate success message based on the method
+    let successMessage = '';
+    
+    switch (data.method) {
+      case 'reminder_email':
+        successMessage = `
+🔔 Reminder Sent!
+
+📧 To: ${inviteEmail}
+💭 Status: User is already a member of this room
+📨 Action: Sent a friendly reminder email
+
+The user has been notified that they're already part of "${room?.name}".
+        `;
+        break;
+        
+      case 'existing_user_added':
+        successMessage = `
+🎉 User Added Successfully!
+
+📧 To: ${inviteEmail}
+✅ Status: Existing user added to room
+📨 Action: Sent welcome email
+
+${inviteEmail} has been automatically added to the room and notified!
+        `;
+        break;
+        
+      case 'supabase_invitation':
+        successMessage = `
+📧 Invitation Sent!
+
+📧 To: ${inviteEmail}
+🔗 Join URL: ${data.emailPreview?.joinUrl}
+🎫 Invite Code: ${data.inviteCode}
+
+New user will receive a signup confirmation email from Supabase.
+        `;
+        break;
+        
+      case 'custom_invitation':
+        successMessage = `
+📨 Custom Invitation Created!
+
+📧 To: ${inviteEmail}
+🔗 Join URL: ${data.emailPreview?.joinUrl}
+🎫 Invite Code: ${data.inviteCode}
+
+Note: Custom invitation email created (check console for preview).
+        `;
+        break;
+        
+      default:
+        successMessage = `
+✅ Invitation Processed!
+
+📧 Sent to: ${inviteEmail}
+🎫 Invite Code: ${data.inviteCode}
+
+The user should receive an email shortly.
+        `;
+    }
+    
+    alert(successMessage);
+    
+    setTimeout(() => {
+      setInviteEmail('');
+      setInviteMessage('');
+      setEmailSent(false);
+      closeModal();
+      // Refresh the page to show the new member (if they were added directly)
+      if (data.method === 'existing_user_added') {
+        window.location.reload();
+      }
+    }, 3000);
+    
+  } catch (err: any) {
+    console.error('Email invite error:', err);
+    setModalError(`Email invite failed: ${err.message}`);
+  } finally {
+    setSendingEmail(false);
+  }
+};
   const copyInviteLink = () => {
     if (inviteCode) {
       const inviteUrl = `${window.location.origin}/rooms/join/${inviteCode}`;
@@ -287,7 +441,7 @@ export default function RoomDetailPage() {
   }
   
   const userIsAdmin = isAdmin();
-  const currentUserName = currentUser?.name || currentUser?.email?.split('@')[0] || 'User';
+  const currentUserName = currentUser?.name || 'User';
 
   return (
     <>
@@ -383,7 +537,11 @@ export default function RoomDetailPage() {
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-xl font-semibold text-slate-800">Members ({members.length})</h2>
                       {userIsAdmin && (
-                        <button onClick={generateInvite} disabled={generatingInvite} className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 disabled:opacity-60 transition-colors">
+                        <button 
+                          onClick={() => setActiveModal('invite')} // Just open modal, don't call generateInvite
+                          disabled={generatingInvite} 
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 disabled:opacity-60 transition-colors"
+                        >
                           <UserPlus className="w-4 h-4 mr-1.5" /> Invite
                         </button>
                       )}
@@ -394,12 +552,18 @@ export default function RoomDetailPage() {
                           <li key={member.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-md border border-slate-200">
                             <div>
                               <p className="font-medium text-slate-800 text-sm">
-                                {member.user_name || member.user_email || `User ID: ${member.user_id.substring(0,8)}...`}
+                                {member.user_name}
                                 {member.user_id === currentUser?.id && (
                                   <span className="ml-1.5 text-xs text-blue-600">(You)</span>
                                 )}
                               </p>
-                              <p className="text-xs text-slate-500">Joined: {new Date(member.joined_at).toLocaleDateString()}</p>
+                              <p className="text-xs text-slate-500">
+                                Joined: {new Date(member.joined_at).toLocaleDateString()
+}
+                              </p>
+                              <p className="text-xs text-slate-400 font-mono">
+                                ID: {member.user_id.substring(0, 8)}...
+                              </p>
                             </div>
                             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                               member.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
@@ -474,27 +638,43 @@ export default function RoomDetailPage() {
                   <div className="p-5 sm:p-6">
                     <div className="flex justify-between items-center mb-3">
                       <h3 className="text-lg font-semibold text-slate-800">Recent Activity</h3>
-                        <Link href={`/rooms/${roomId}/transactions`} className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                      <button 
+                        onClick={() => setActiveModal('transactions')} 
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                      >
                         View All
-                        </Link>
+                      </button>
                     </div>
                     {loading && transactions.length === 0 ? (
                        <div className="animate-pulse space-y-3 mt-2">
-                          <div className="h-10 bg-slate-200 rounded"></div>
-                          <div className="h-10 bg-slate-200 rounded"></div>
+                          <div className="h-12 bg-slate-200 rounded"></div>
+                          <div className="h-12 bg-slate-200 rounded"></div>
                         </div>
                     ) : transactions.length > 0 ? (
                       <ul className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                         {transactions.slice(0, 5).map((tx) => (
                           <li key={tx.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-md border border-slate-200 text-sm">
-                            <div>
-                              <p className={`font-medium ${tx.type === 'CONTRIBUTION' ? 'text-green-700' : 'text-orange-700'}`}>
-                                {tx.type === 'CONTRIBUTION' ? 'Contribution' : 'Reimbursement'}
-                                <span className="ml-1.5 text-slate-800">₹{tx.amount.toFixed(2)}</span>
-                              </p>
-                              <p className="text-xs text-slate-500 truncate max-w-[150px] sm:max-w-xs" title={tx.notes}>{tx.notes || 'No notes'}</p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2">
+                                <span className={`${tx.type === 'CONTRIBUTION' ? 'text-green-600' : 'text-orange-600'}`}>
+                                  {tx.type === 'CONTRIBUTION' ? <CreditCard className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`font-medium ${tx.type === 'CONTRIBUTION' ? 'text-green-700' : 'text-orange-700'} truncate`}>
+                                    {tx.type === 'CONTRIBUTION' ? 'Contribution' : 'Reimbursement'}
+                                    <span className="ml-1 text-slate-800">₹{tx.amount.toFixed(2)}</span>
+                                  </p>
+                                  <p className="text-xs text-slate-600 truncate" title={`By: ${tx.user_name}`}>
+                                    By: <span className="font-medium">{tx.user_name}</span>
+                                    {tx.user_id === currentUser?.id && <span className="text-blue-600 ml-1">(You)</span>}
+                                  </p>
+                                  <p className="text-xs text-slate-500 truncate" title={tx.notes}>
+                                    {tx.notes || 'No notes'}
+                                  </p>
+                                </div>
+                              </div>
                             </div>
-                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ml-2 ${
                               tx.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' 
                               : tx.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' 
                               : 'bg-red-100 text-red-700'
@@ -613,29 +793,46 @@ export default function RoomDetailPage() {
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-5 sm:p-6">
                 <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-200">
-                  <h3 className="text-xl font-semibold text-slate-800 flex items-center"><ListChecks className="w-5 h-5 mr-2 text-slate-600"/>All Transactions</h3>
-                  <button onClick={closeModal} className="p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X className="w-5 h-5" /></button>
+                  <h3 className="text-xl font-semibold text-slate-800 flex items-center">
+                    <ListChecks className="w-5 h-5 mr-2 text-slate-600"/>All Transactions
+                  </h3>
+                  <button onClick={closeModal} className="p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
                 {transactions.length > 0 ? (
                   <ul className="space-y-3">
                     {transactions.map((tx) => (
                       <li key={tx.id} className="p-3 border border-slate-200 rounded-md hover:shadow-sm transition-shadow">
-                        <div className="flex justify-between items-start mb-1">
-                          <div className="flex items-center space-x-2">
-                            <span className={`text-xl ${tx.type === 'CONTRIBUTION' ? 'text-green-500' : 'text-orange-500'}`}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center space-x-3">
+                            <span className={`${tx.type === 'CONTRIBUTION' ? 'text-green-500' : 'text-orange-500'}`}>
                               {tx.type === 'CONTRIBUTION' ? <CreditCard className="w-5 h-5"/> : <FileText className="w-5 h-5"/>}
                             </span>
-                            <div>
-                              <h4 className="font-medium text-slate-800 text-sm">{tx.type === 'CONTRIBUTION' ? 'Contribution' : 'Reimbursement'} - ₹{tx.amount.toFixed(2)}</h4>
-                              <p className="text-xs text-slate-500">By: {tx.user_name || `User ${tx.user_id.substring(0,6)}...`}</p>
+                            <div className="flex-1">
+                              <h4 className="font-medium text-slate-800 text-sm">
+                                {tx.type === 'CONTRIBUTION' ? 'Contribution' : 'Reimbursement'} - ₹{tx.amount.toFixed(2)}
+                              </h4>
+                              <p className="text-xs text-slate-600">
+                                By: <span className="font-medium">{tx.user_name}</span>
+                                {tx.user_id === currentUser?.id && <span className="text-blue-600 ml-1">(You)</span>}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-1" title={tx.notes}>
+                                {tx.notes || 'No notes provided'}
+                              </p>
                             </div>
                           </div>
-                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${ tx.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : tx.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700' }`}>
+                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ${
+                            tx.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' 
+                            : tx.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' 
+                            : 'bg-red-100 text-red-700'
+                          }`}>
                             {tx.status}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 mb-1 ml-7 truncate" title={tx.notes}>{tx.notes || 'No notes provided'}</p>
-                        <p className="text-xs text-slate-400 text-right">{new Date(tx.transaction_date).toLocaleString()}</p>
+                        <p className="text-xs text-slate-400 text-right">
+                          {new Date(tx.transaction_date).toLocaleString()}
+                        </p>
                       </li>
                     ))}
                   </ul>
@@ -646,29 +843,174 @@ export default function RoomDetailPage() {
                   </div>
                 )}
                  <div className="mt-6 pt-4 border-t border-slate-200">
-                  <button onClick={closeModal} className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-500">Close</button>
+                  <button onClick={closeModal} className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-500">
+                    Close
+                  </button>
                 </div>
               </div>
             </div>
           )}
           {/* Invite Modal */}
-          {activeModal === 'invite' && inviteCode && userIsAdmin && room && (
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+          {activeModal === 'invite' && userIsAdmin && room && (
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
               <div className="p-5 sm:p-6">
                 <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-200">
-                  <h3 className="text-xl font-semibold text-slate-800 flex items-center"><UserPlus className="w-5 h-5 mr-2 text-green-600"/>Invite Members</h3>
-                  <button onClick={closeModal} className="p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X className="w-5 h-5" /></button>
-                </div>
-                <p className="text-sm text-slate-600 mb-3">Share this link to invite members to <strong>{room.name}</strong>:</p>
-                <div className="bg-slate-100 p-3 rounded-md mb-4 break-all text-sm font-mono border border-slate-200">
-                  {`${window.location.origin}/rooms/join/${inviteCode}`}
-                </div>
-                {modalError && <p className="text-sm text-red-600 bg-red-50 p-2 rounded-md mb-3">{modalError}</p>}
-                <div className="flex space-x-3 pt-4 border-t border-slate-200">
-                  <button onClick={copyInviteLink} className="flex-1 inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-slate-700 hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-500">
-                    <Copy className="w-4 h-4 mr-2"/> Copy Link
+                  <h3 className="text-xl font-semibold text-slate-800 flex items-center">
+                    <UserPlus className="w-5 h-5 mr-2 text-green-600"/>Invite Members
+                  </h3>
+                  <button onClick={closeModal} className="p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                    <X className="w-5 h-5" />
                   </button>
-                  <button onClick={closeModal} className="flex-1 inline-flex items-center justify-center px-4 py-2.5 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-500">Close</button>
+                </div>
+
+                {!inviteCode ? (
+                  // Step 1: Generate invite options
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-600 mb-4">
+                      Choose how you want to invite members to <strong>{room.name}</strong>:
+                    </p>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                      <button
+                        onClick={() => generateInvite('link')}
+                        disabled={generatingInvite}
+                        className="w-full p-4 border-2 border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                      >
+                        <div className="flex items-center">
+                          <Copy className="w-5 h-5 text-blue-600 mr-3" />
+                          <div>
+                            <h4 className="font-medium text-slate-800">Copy Invite Link</h4>
+                            <p className="text-sm text-slate-600">Generate a link that you can share manually</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => generateInvite('email')}
+                        disabled={generatingInvite}
+                        className="w-full p-4 border-2 border-slate-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
+                      >
+                        <div className="flex items-center">
+                          <Mail className="w-5 h-5 text-green-600 mr-3" />
+                          <div>
+                            <h4 className="font-medium text-slate-800">Send Email Invitation</h4>
+                            <p className="text-sm text-slate-600">Send invite directly to member's email</p>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+
+                    {generatingInvite && (
+                      <div className="text-center py-4">
+                        <RefreshCw className="w-6 h-6 text-slate-500 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-slate-600">Generating invite...</p>
+                      </div>
+                    )}
+
+                    {modalError && (
+                      <p className="text-sm text-red-600 bg-red-50 p-3 rounded-md">{modalError}</p>
+                    )}
+                  </div>
+                ) : inviteMode === 'link' ? (
+                  // Step 2a: Show link to copy
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-600 mb-3">
+                      Share this link to invite members:
+                    </p>
+                    <div className="bg-slate-100 p-3 rounded-md break-all text-sm font-mono border border-slate-200">
+                      {`${window.location.origin}/rooms/join/${inviteCode}`}
+                    </div>
+                    <div className="flex space-x-3">
+                      <button 
+                        onClick={copyInviteLink} 
+                        className="flex-1 inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Copy className="w-4 h-4 mr-2"/> Copy Link
+                      </button>
+                      <button 
+                        onClick={() => { setInviteCode(null); setInviteMode(null); }} 
+                        className="flex-1 inline-flex items-center justify-center px-4 py-2.5 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // Step 2b: Email invitation form
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-600 mb-3">
+                      Enter the email address to send an invitation:
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Email Address <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        placeholder="member@example.com"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Personal Message (Optional)
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={inviteMessage}
+                        onChange={(e) => setInviteMessage(e.target.value)}
+                        placeholder="Hi! I'd like to invite you to join our expense room..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+
+                    {modalError && (
+                      <p className="text-sm text-red-600 bg-red-50 p-3 rounded-md">{modalError}</p>
+                    )}
+
+                    {emailSent && (
+                      <p className="text-sm text-green-600 bg-green-50 p-3 rounded-md">
+                        Invitation sent successfully to {inviteEmail}!
+                      </p>
+                    )}
+
+                    <div className="flex space-x-3">
+                      <button 
+                        onClick={sendEmailInvite}
+                        disabled={!inviteEmail || sendingEmail}
+                        className="flex-1 inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-60"
+                      >
+                        {sendingEmail ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="w-4 h-4 mr-2" />
+                            Send Invitation
+                          </>
+                        )}
+                      </button>
+                      <button 
+                        onClick={() => { setInviteCode(null); setInviteMode(null); setInviteEmail(''); setInviteMessage(''); }} 
+                        className="flex-1 inline-flex items-center justify-center px-4 py-2.5 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-6 pt-4 border-t border-slate-200">
+                  <button 
+                    onClick={closeModal} 
+                    className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </div>

@@ -201,7 +201,9 @@ export default function ContributePage() {
               <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Contribution Submitted!</h2>
               <p className="text-slate-600 mb-6">
-                Your contribution request has been sent. The room admin will verify your payment and confirm your contribution.
+                Your contribution has been submitted and is <strong>pending admin approval</strong>. 
+                The room admin will verify your payment and confirm your contribution. 
+                Once approved, it will be added to the room fund.
               </p>
               <div className="space-y-3">
                 <button

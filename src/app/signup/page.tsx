@@ -3,9 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-// Removed: import { Button } from '@/components/ui/button';
-// Removed: import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-// Removed: import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Eye, EyeOff, Mail, User, Lock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -28,6 +25,12 @@ export default function SignUpPage() {
     setLoading(true);
 
     // Validation
+    if (!formData.name.trim()) {
+      setError('Please enter your full name');
+      setLoading(false);
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
@@ -41,14 +44,16 @@ export default function SignUpPage() {
     }
 
     try {
-      const supabase = await createClient();
+      const supabase = createClient();
       
+      // Sign up the user
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
-            name: formData.name
+            name: formData.name.trim(),
+            full_name: formData.name.trim() // Add both for compatibility
           }
         }
       });
@@ -58,9 +63,23 @@ export default function SignUpPage() {
       }
 
       if (data.user) {
-        // You might want to redirect to a verification page or dashboard
-        // For now, let's assume dashboard after successful signup
-        router.push('/dashboard'); // Or a verification pending page
+        // Create profile record to ensure name is stored
+        const { error: profileError } = await supabase
+          .from('profile')
+          .upsert({
+            id: data.user.id,
+            full_name: formData.name.trim(),
+            updated_at: new Date().toISOString()
+          });
+
+        if (profileError) {
+          console.warn('Profile creation failed:', profileError);
+          // Don't fail the signup for this
+        }
+
+        // Success message and redirect
+        alert('Account created successfully! Please check your email to verify your account.');
+        router.push('/login');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to create account');
@@ -95,29 +114,23 @@ export default function SignUpPage() {
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
-          {/* Card Replacement */}
           <div className="bg-white border border-slate-200 rounded-lg shadow-xl">
-            {/* CardHeader Replacement */}
             <div className="text-center p-6 border-b border-slate-200">
               <div className="flex justify-center mb-4">
-                {/* Badge Replacement */}
                 <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
                   <User className="w-3 h-3 mr-1.5" />
                   Create Account
                 </div>
               </div>
               
-              {/* CardTitle Replacement */}
               <h2 className="text-2xl font-bold text-slate-900">
                 Join FinLoop
               </h2>
-              {/* CardDescription Replacement */}
               <p className="text-slate-600 text-sm mt-1">
                 Start managing your group expenses like a pro
               </p>
             </div>
 
-            {/* CardContent Replacement */}
             <div className="p-6">
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
@@ -128,7 +141,7 @@ export default function SignUpPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Full Name
+                    Full Name <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -137,16 +150,18 @@ export default function SignUpPage() {
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Enter your full name"
+                      placeholder="Enter your full name (e.g., John Doe)"
                       className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors text-sm"
                       required
+                      minLength={2}
                     />
                   </div>
+                  <p className="text-xs text-slate-500 mt-1">This name will be visible to other room members</p>
                 </div>
 
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Email Address
+                    Email Address <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -164,7 +179,7 @@ export default function SignUpPage() {
 
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Password
+                    Password <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -176,6 +191,7 @@ export default function SignUpPage() {
                       placeholder="Create a password (min. 6 characters)"
                       className="w-full pl-10 pr-12 py-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors text-sm"
                       required
+                      minLength={6}
                     />
                     <button
                       type="button"
@@ -190,7 +206,7 @@ export default function SignUpPage() {
 
                 <div>
                   <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Confirm Password
+                    Confirm Password <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -214,7 +230,6 @@ export default function SignUpPage() {
                   </div>
                 </div>
 
-                {/* Button Replacement */}
                 <button 
                   type="submit" 
                   disabled={loading}
@@ -235,7 +250,6 @@ export default function SignUpPage() {
             </div>
           </div>
 
-          {/* Additional Info */}
           <div className="mt-8 text-center">
             <p className="text-xs text-slate-500">
               By creating an account, you agree to our{' '}

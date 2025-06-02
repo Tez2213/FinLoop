@@ -112,18 +112,43 @@ export default function AdminDashboard() {
     }
   };
 
+  // Update the admin panel to fetch user names for pending transactions
   const fetchPendingTransactions = async () => {
     try {
       const response = await fetch(`/api/rooms/${roomId}/transactions`);
       if (!response.ok) throw new Error('Failed to fetch transactions for pending list');
       const data = await response.json();
+      
       const pending = (data.transactions || []).filter((t: PendingTransaction) => 
         t.status === 'PENDING'
       );
-      setPendingTransactions(pending);
+
+      // Fetch user names for each pending transaction
+      const pendingWithNames = await Promise.all(
+        pending.map(async (tx: PendingTransaction) => {
+          try {
+            const userResponse = await fetch(`/api/users/${tx.user_id}`);
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              return {
+                ...tx,
+                user_name: userData.name || userData.full_name || `User ${tx.user_id.substring(0, 8)}...`,
+                user_email: userData.email
+              };
+            }
+          } catch (err) {
+            console.error('Error fetching user data for transaction:', err);
+          }
+          return {
+            ...tx,
+            user_name: `User ${tx.user_id.substring(0, 8)}...`
+          };
+        })
+      );
+
+      setPendingTransactions(pendingWithNames);
     } catch (err: any) {
       console.error('Error fetching pending transactions:', err.message);
-      // Optionally set a specific error for this section if needed
     }
   };
 

@@ -3,6 +3,34 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Plus, Users, Calendar, ExternalLink, Crown, User, Settings, Eye } from "lucide-react";
 
+// Add proper TypeScript interfaces
+interface Room {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  admin_id: string;
+}
+
+interface MemberRoom {
+  room_id: string;
+  role: string;
+  joined_at: string;
+  rooms: Room;
+}
+
+interface RoomWithCounts extends Room {
+  memberCount: number;
+  type: 'created';
+}
+
+interface MemberRoomWithCounts extends Room {
+  memberCount: number;
+  role: string;
+  joined_at: string;
+  type: 'member';
+}
+
 export default async function MyRoomsPage() {
   const supabase = await createClient();
 
@@ -12,10 +40,10 @@ export default async function MyRoomsPage() {
     redirect("/login");
   }
 
-  // Get user's created rooms
+  // Get user's created rooms - Add admin_id
   const { data: userRooms } = await supabase
     .from('rooms')
-    .select('id, name, description, created_at')
+    .select('id, name, description, created_at, admin_id')
     .eq('admin_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -26,7 +54,7 @@ export default async function MyRoomsPage() {
       room_id,
       role,
       joined_at,
-      rooms (
+      rooms!inner (
         id,
         name,
         description,
@@ -38,7 +66,7 @@ export default async function MyRoomsPage() {
     .order('joined_at', { ascending: false });
 
   // Get member counts for created rooms
-  const createdRoomsWithCounts = await Promise.all(
+  const createdRoomsWithCounts: RoomWithCounts[] = await Promise.all(
     (userRooms || []).map(async (room) => {
       const { count } = await supabase
         .from('room_members')
@@ -53,16 +81,20 @@ export default async function MyRoomsPage() {
     })
   );
 
-  // Get member counts for member rooms
-  const memberRoomsWithCounts = await Promise.all(
-    (memberRooms || []).map(async (member) => {
+  // Get member counts for member rooms - Fixed the type issue
+  const memberRoomsWithCounts: MemberRoomWithCounts[] = await Promise.all(
+    ((memberRooms as unknown) as MemberRoom[] || []).map(async (member) => {
       const { count } = await supabase
         .from('room_members')
         .select('*', { count: 'exact', head: true })
         .eq('room_id', member.room_id);
       
       return {
-        ...member.rooms,
+        id: member.rooms.id,
+        name: member.rooms.name,
+        description: member.rooms.description,
+        created_at: member.rooms.created_at,
+        admin_id: member.rooms.admin_id,
         memberCount: count || 0,
         role: member.role,
         joined_at: member.joined_at,
@@ -176,7 +208,9 @@ export default async function MyRoomsPage() {
                               <h3 className="text-lg font-semibold text-slate-800 truncate">
                                 {room.name}
                               </h3>
-                              <Crown className="w-4 h-4 text-blue-600 flex-shrink-0" title="Room Admin" />
+                              <span title="Room Admin">
+                                <Crown className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                              </span>
                             </div>
                             {room.description && (
                               <p className="text-slate-600 text-sm line-clamp-2 mb-3">

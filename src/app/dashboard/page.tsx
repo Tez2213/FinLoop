@@ -3,6 +3,22 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { LogOut, UserCircle, Settings, LayoutDashboard, Plus, Eye, Users, Calendar, TrendingUp, DollarSign } from "lucide-react";
 
+// Add proper TypeScript interfaces
+interface Room {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  admin_id: string;
+}
+
+interface MemberRoom {
+  room_id: string;
+  role: string;
+  joined_at: string;
+  rooms: Room;
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
 
@@ -19,14 +35,14 @@ export default async function DashboardPage() {
     .eq('admin_id', user.id)
     .order('created_at', { ascending: false });
 
-  // Get rooms where user is a member
+  // Get rooms where user is a member - fix the type issue
   const { data: memberRooms } = await supabase
     .from('room_members')
     .select(`
       room_id,
       role,
       joined_at,
-      rooms (
+      rooms!inner (
         id,
         name,
         description,
@@ -46,6 +62,9 @@ export default async function DashboardPage() {
 
   const userName = profile?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User';
   const totalRooms = (userRooms?.length || 0) + (memberRooms?.length || 0);
+
+  // Type the memberRooms properly
+  const typedMemberRooms = memberRooms as MemberRoom[] | null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -136,7 +155,7 @@ export default async function DashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-600">Member Of</p>
-                  <p className="text-3xl font-bold text-slate-900">{memberRooms?.length || 0}</p>
+                  <p className="text-3xl font-bold text-slate-900">{typedMemberRooms?.length || 0}</p>
                 </div>
                 <div className="p-3 bg-green-100 rounded-lg">
                   <Users className="w-6 h-6 text-green-600" />
@@ -245,13 +264,13 @@ export default async function DashboardPage() {
               )}
             </div>
 
-            {/* Member Rooms */}
+            {/* Member Rooms - Fixed */}
             <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
               <h2 className="text-xl font-semibold text-slate-800 mb-6">Rooms I'm In</h2>
               
-              {memberRooms && memberRooms.length > 0 ? (
+              {typedMemberRooms && typedMemberRooms.length > 0 ? (
                 <div className="space-y-3">
-                  {memberRooms.slice(0, 3).map((member) => (
+                  {typedMemberRooms.slice(0, 3).map((member) => (
                     <Link
                       key={member.room_id}
                       href={`/rooms/${member.rooms.id}`}
@@ -271,12 +290,12 @@ export default async function DashboardPage() {
                     </Link>
                   ))}
                   
-                  {memberRooms.length > 3 && (
+                  {typedMemberRooms.length > 3 && (
                     <Link 
                       href="/dashboard/rooms"
                       className="block text-center text-sm text-green-600 hover:text-green-700 font-medium pt-3 border-t border-slate-200"
                     >
-                      View All {memberRooms.length} Rooms →
+                      View All {typedMemberRooms.length} Rooms →
                     </Link>
                   )}
                 </div>

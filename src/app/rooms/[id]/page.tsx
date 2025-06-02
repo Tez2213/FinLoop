@@ -202,15 +202,39 @@ export default function RoomDetailPage() {
   };
 
   const generateInvite = async () => {
-    if (!isAdmin()) { setModalError('Only admins can create invites'); return; }
-    setGeneratingInvite(true); setModalError(null);
+    if (!isAdmin()) { 
+      setModalError('Only admins can create invites'); 
+      return; 
+    }
+    
+    setGeneratingInvite(true); 
+    setModalError(null);
+    
     try {
-      const response = await fetch(`/api/rooms/${roomId}/invite`, { /* ... */ });
-      if (!response.ok) { /* ... */ throw new Error(/* ... */); }
+      const response = await fetch(`/api/rooms/${roomId}/invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          expires_in_hours: 24,
+          max_uses: 10
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate invite');
+      }
+      
       const data = await response.json();
-      setInviteCode(data.invite_code); setActiveModal('invite');
-    } catch (err: any) { setModalError(`Invite generation failed: ${err.message}`); } 
-    finally { setGeneratingInvite(false); }
+      setInviteCode(data.invite_code); 
+      setActiveModal('invite');
+    } catch (err: any) { 
+      setModalError(`Invite generation failed: ${err.message}`); 
+    } finally { 
+      setGeneratingInvite(false); 
+    }
   };
 
   const copyInviteLink = () => {

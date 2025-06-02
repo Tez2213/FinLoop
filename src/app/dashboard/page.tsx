@@ -1,7 +1,7 @@
-import { createClient } from "@/lib/supabase/server"; // Use server client
+import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LogOut, UserCircle, Settings, LayoutDashboard } from "lucide-react"; // Example icons
+import { LogOut, UserCircle, Settings, LayoutDashboard, Plus, Eye } from "lucide-react";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -9,10 +9,16 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login"); // Protect this route
+    redirect("/login");
   }
 
-  // Extract user's name from metadata if available, otherwise use email part
+  // Get user's rooms
+  const { data: userRooms } = await supabase
+    .from('rooms')
+    .select('id, name, description, created_at')
+    .eq('admin_id', user.id)
+    .order('created_at', { ascending: false });
+
   const userName = user.user_metadata?.name || user.email?.split('@')[0] || 'User';
 
   return (
@@ -38,7 +44,6 @@ export default async function DashboardPage() {
               <span className="text-sm text-slate-600 mr-3 hidden sm:block">
                 Welcome, {userName}
               </span>
-              {/* Simple Logout Button - For a real app, this would be a dropdown with profile, settings etc. */}
               <form action="/auth/signout" method="post">
                 <button 
                   type="submit"
@@ -62,13 +67,13 @@ export default async function DashboardPage() {
               Hello, {userName}!
             </h1>
             <p className="text-slate-600">
-              Welcome to your FinLoop dashboard. Here's a quick overview.
+              Welcome to your FinLoop dashboard. Manage your expense rooms and track your finances.
             </p>
           </div>
 
           {/* Dashboard Cards/Sections */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Example Card 1: User Info */}
+            {/* User Profile Card */}
             <div className="bg-white shadow rounded-lg p-6">
               <div className="flex items-center mb-4">
                 <UserCircle className="w-8 h-8 text-blue-600 mr-3" />
@@ -84,43 +89,99 @@ export default async function DashboardPage() {
               </Link>
             </div>
 
-            {/* Example Card 2: Quick Actions (Placeholder) */}
+            {/* Quick Actions Card */}
             <div className="bg-white shadow rounded-lg p-6">
               <div className="flex items-center mb-4">
                 <Settings className="w-8 h-8 text-green-600 mr-3" />
                 <h2 className="text-xl font-semibold text-slate-700">Quick Actions</h2>
               </div>
               <div className="space-y-3">
-                <button className="w-full text-left px-4 py-2 text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors">
+                <Link 
+                  href="/rooms/create"
+                  className="w-full flex items-center px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
                   Create New Expense Room
-                </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors">
-                  View My Rooms
-                </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors">
+                </Link>
+                
+                {userRooms && userRooms.length > 0 ? (
+                  <Link 
+                    href="/dashboard/rooms"
+                    className="w-full flex items-center px-4 py-2 text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    View My Rooms ({userRooms.length})
+                  </Link>
+                ) : (
+                  <div className="w-full flex items-center px-4 py-2 text-sm text-slate-500 bg-slate-50 rounded-md cursor-not-allowed">
+                    <Eye className="w-4 h-4 mr-2" />
+                    No Rooms Created Yet
+                  </div>
+                )}
+                
+                <Link 
+                  href="/dashboard/settings"
+                  className="w-full flex items-center px-4 py-2 text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
                   Account Settings
-                </button>
+                </Link>
               </div>
             </div>
             
-            {/* Example Card 3: Stats (Placeholder) */}
+            {/* My Rooms Overview Card */}
             <div className="bg-white shadow rounded-lg p-6 md:col-span-2 lg:col-span-1">
-              <h2 className="text-xl font-semibold text-slate-700 mb-4">Activity Overview</h2>
-              <p className="text-slate-500 text-sm">
-                More detailed stats and charts will appear here soon...
-              </p>
-              {/* Placeholder for charts or more stats */}
-              <div className="mt-4 h-32 bg-slate-50 rounded-md flex items-center justify-center text-slate-400">
-                Chart Area
-              </div>
+              <h2 className="text-xl font-semibold text-slate-700 mb-4">My Rooms Overview</h2>
+              
+              {userRooms && userRooms.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-600">Total Rooms:</span>
+                    <span className="font-medium text-slate-800">{userRooms.length}</span>
+                  </div>
+                  
+                  <div className="max-h-32 overflow-y-auto space-y-2">
+                    {userRooms.slice(0, 3).map((room) => (
+                      <Link
+                        key={room.id}
+                        href={`/rooms/${room.id}`}
+                        className="block p-2 bg-slate-50 hover:bg-slate-100 rounded text-sm transition-colors"
+                      >
+                        <div className="font-medium text-slate-800 truncate">{room.name}</div>
+                        <div className="text-slate-500 text-xs">
+                          Created {new Date(room.created_at).toLocaleDateString()}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  
+                  {userRooms.length > 3 && (
+                    <Link 
+                      href="/dashboard/rooms"
+                      className="block text-center text-sm text-blue-600 hover:text-blue-700 font-medium pt-2 border-t border-slate-200"
+                    >
+                      View All Rooms &rarr;
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-slate-400 mb-2">No rooms created yet</div>
+                  <Link 
+                    href="/rooms/create"
+                    className="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Your First Room
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* More dashboard content can be added here */}
         </div>
       </main>
 
-      {/* Footer (Optional) */}
+      {/* Footer */}
       <footer className="py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-slate-500 border-t border-slate-200">
         &copy; {new Date().getFullYear()} FinLoop. All rights reserved.
       </footer>

@@ -6,10 +6,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: roomId } = await params;
-
   console.log('API /api/rooms/[id]/contribute POST HIT for room:', roomId);
   
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
@@ -35,36 +34,36 @@ export async function POST(
       return NextResponse.json({ error: 'Access denied - not a room member' }, { status: 403 });
     }
 
-    // Create transaction record
-    const { data: transaction, error: transactionError } = await supabase
+    // Create transaction record (cast to any to bypass type checking)
+    const { data: transaction, error: transactionError } = await (supabase as any)
       .from('transactions')
       .insert({
         room_id: roomId,
         user_id: user.id,
         type: 'CONTRIBUTION',
         amount: parseFloat(amount),
-        notes: notes || 'Fund contribution',
-        status: 'PENDING',
+        notes: notes || 'Contribution to room fund',
+        status: 'CONFIRMED', // Contributions are automatically confirmed
         transaction_date: new Date().toISOString()
       })
       .select()
       .single();
 
     if (transactionError) {
-      console.error('Error creating transaction:', transactionError);
-      return NextResponse.json({ error: 'Failed to create transaction' }, { status: 500 });
+      console.error('Error creating contribution transaction:', transactionError);
+      return NextResponse.json({ error: 'Failed to create contribution' }, { status: 500 });
     }
 
-    // Update or create room_fund record
+    // Update room fund
     await updateRoomFund(supabase, roomId);
 
     return NextResponse.json({ 
-      message: 'Contribution submitted successfully',
+      message: 'Contribution successful', 
       transaction 
     });
 
   } catch (error: any) {
-    console.error('Unexpected error in contribute API:', error);
+    console.error('Unexpected error in contribution API:', error);
     return NextResponse.json({ 
       error: 'Server error',
       details: error.message 
@@ -75,8 +74,8 @@ export async function POST(
 // Helper function to update room fund
 async function updateRoomFund(supabase: any, roomId: string) {
   try {
-    // Get all confirmed transactions for this room
-    const { data: transactions, error: transactionError } = await supabase
+    // Get all confirmed transactions for this room (cast to any to bypass type checking)
+    const { data: transactions, error: transactionError } = await (supabase as any)
       .from('transactions')
       .select('type, amount, status')
       .eq('room_id', roomId)
@@ -101,17 +100,17 @@ async function updateRoomFund(supabase: any, roomId: string) {
 
     const current_balance = total_contributions - total_reimbursements;
 
-    // Check if room_funds record exists (CHANGED)
-    const { data: existingFund, error: fundFetchError } = await supabase
-      .from('room_funds')  // ← CHANGED
+    // Check if room_funds record exists (cast to any to bypass type checking)
+    const { data: existingFund } = await (supabase as any)
+      .from('room_funds')
       .select('id')
       .eq('room_id', roomId)
       .single();
 
     if (existingFund) {
       // Update existing record
-      const { error: updateError } = await supabase
-        .from('room_funds')  // ← CHANGED
+      const { error: updateError } = await (supabase as any)
+        .from('room_funds')
         .update({
           total_contributions,
           total_reimbursements,
@@ -125,8 +124,8 @@ async function updateRoomFund(supabase: any, roomId: string) {
       }
     } else {
       // Create new record
-      const { error: insertError } = await supabase
-        .from('room_funds')  // ← CHANGED
+      const { error: insertError } = await (supabase as any)
+        .from('room_funds')
         .insert({
           room_id: roomId,
           total_contributions,

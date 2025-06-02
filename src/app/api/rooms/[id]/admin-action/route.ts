@@ -8,7 +8,7 @@ export async function POST(
   const resolvedParams = await params;
   console.log('API /api/rooms/[id]/admin-action POST HIT for room:', resolvedParams.id);
   
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {

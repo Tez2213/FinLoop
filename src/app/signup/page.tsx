@@ -41,7 +41,7 @@ export default function SignUpPage() {
     }
 
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,

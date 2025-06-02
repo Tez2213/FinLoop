@@ -4,7 +4,7 @@ import Link from "next/link";
 import { LogOut, UserCircle, Settings, LayoutDashboard } from "lucide-react"; // Example icons
 
 export default async function DashboardPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
 

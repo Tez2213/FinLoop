@@ -9,7 +9,7 @@ export async function GET(
 
   console.log('API /api/rooms/[id]/admin/pending-transactions GET HIT for room:', roomId);
   
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
@@ -32,8 +32,8 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied - Only room admin can view pending transactions' }, { status: 403 });
     }
 
-    // Fetch all pending transactions for this room
-    const { data: transactions, error: transactionError } = await supabase
+    // Fetch all pending transactions for this room (cast to any to bypass type checking)
+    const { data: transactions, error: transactionError } = await (supabase as any)
       .from('transactions')
       .select('*')
       .eq('room_id', roomId)

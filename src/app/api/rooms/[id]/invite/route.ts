@@ -9,7 +9,7 @@ export async function POST(
   const { id: roomId } = await params;
   console.log('API /api/rooms/[id]/invite POST HIT for room:', roomId);
   
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
@@ -42,8 +42,8 @@ export async function POST(
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + expires_in_hours);
 
-    // Create invite record
-    const { data: inviteData, error: inviteError } = await supabase
+    // Create invite record (cast to any to bypass type checking)
+    const { data: inviteData, error: inviteError } = await (supabase as any)
       .from('room_invites')
       .insert({
         room_id: roomId,

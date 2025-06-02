@@ -11,7 +11,7 @@ const createRoomSchema = z.object({
 export async function POST(request: Request) {
   console.log('API /api/rooms/create HIT');
   
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError) {

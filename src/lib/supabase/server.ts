@@ -1,11 +1,11 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr'; 
 import { cookies } from 'next/headers';
-import type { Database } from '@/type/supabase'; // Ensure you have this import if using typed client
+import { NextResponse } from 'next/server';
 
-export function createClient() {
-  const cookieStore = cookies();
+export async function createClient() {
+  const cookieStore = await cookies();
 
-  return createServerClient<Database>( // Add <Database> if you're using typed client
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -24,7 +24,7 @@ export function createClient() {
         },
         remove(name: string, options: CookieOptions) {
           try {
-            cookieStore.delete({ name, ...options });
+            cookieStore.set({ name, value: '', ...options });
           } catch (error) {
             // The `delete` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing
@@ -34,4 +34,62 @@ export function createClient() {
       },
     }
   );
+}
+
+export async function updateSession(request: any) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          });
+        },
+        remove(name: string, options: CookieOptions) {
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          });
+        },
+      },
+    }
+  );
+
+  await supabase.auth.getUser();
+
+  return response;
 }

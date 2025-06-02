@@ -25,7 +25,7 @@ export default function SignInPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: formData.email,
@@ -51,7 +51,7 @@ export default function SignInPage() {
     setError(null);
     setLoading(true);
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: 'demo@finloop.com',
         password: 'password123'

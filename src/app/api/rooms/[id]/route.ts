@@ -8,7 +8,7 @@ export async function GET(
   const { id: roomId } = await params;
   console.log('API /api/rooms/[id] GET HIT for room:', roomId);
   
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {

@@ -21,27 +21,19 @@ export default function AuthNavLinks() {
 
     getUser();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      // If logged out, you might want to redirect or refresh
-      if (event === 'SIGNED_OUT') {
-        router.push('/'); // Or to /login
-        router.refresh();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        setIsLoading(false);
       }
-      // If signed in (e.g. after email confirmation in another tab), refresh to update server state
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        router.refresh();
-      }
-    });
+    );
 
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, [supabase, router]);
+    return () => subscription.unsubscribe();
+  }, [supabase.auth]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    // The onAuthStateChange listener will handle the redirect and refresh
+    router.push('/');
   };
 
   if (isLoading) {
@@ -53,36 +45,36 @@ export default function AuthNavLinks() {
     );
   }
 
+  if (user) {
+    return (
+      <div className="flex items-center space-x-4">
+        <Link href="/dashboard" className="text-sm font-medium hover:text-slate-300 transition-colors">
+          Dashboard
+        </Link>
+        <Link href="/rooms/create" className="text-sm font-medium hover:text-slate-300 transition-colors">
+          Create Room
+        </Link>
+        <button
+          onClick={handleLogout}
+          className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
+        >
+          Logout
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center space-x-4">
-      {user ? (
-        <>
-          <Link href="/dashboard" className="text-sm font-medium hover:text-slate-300 transition-colors">
-            Dashboard
-          </Link>
-          <Link href="/rooms/create" className="text-sm font-medium hover:text-slate-300 transition-colors">
-            Create Room
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
-          >
-            Logout
-          </button>
-        </>
-      ) : (
-        <>
-          <Link href="/login" className="text-sm font-medium hover:text-slate-300 transition-colors">
-            Login
-          </Link>
-          <Link
-            href="/signup"
-            className="bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
-          >
-            Sign Up
-          </Link>
-        </>
-      )}
+    <div className="flex space-x-2">
+      <Link href="/login" className="btn btn-primary">
+        Login
+      </Link>
+      <Link
+        href="/signup"
+        className="btn btn-outline"
+      >
+        Sign Up
+      </Link>
     </div>
   );
 }

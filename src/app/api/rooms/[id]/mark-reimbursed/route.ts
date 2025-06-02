@@ -3,9 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('🎯 MARK REIMBURSED API HIT for room:', params.id);
+  const { id: roomId } = await params;
+  console.log('🎯 MARK REIMBURSED API HIT for room:', roomId);
   
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -25,7 +26,7 @@ export async function POST(
     const { data: room, error: roomError } = await supabase
       .from('rooms')
       .select('admin_id')
-      .eq('id', params.id)
+      .eq('id', roomId)
       .single();
 
     if (roomError || !room || room.admin_id !== user.id) {
@@ -37,7 +38,7 @@ export async function POST(
       .from('transactions')
       .select('*')
       .eq('id', transactionId)
-      .eq('room_id', params.id)
+      .eq('room_id', roomId)
       .single();
 
     if (fetchError || !originalTransaction) {
@@ -64,7 +65,7 @@ export async function POST(
     const { data: reimbursementTransaction, error: reimbursementError } = await supabase
       .from('transactions')
       .insert({
-        room_id: params.id,
+        room_id: roomId,
         user_id: originalTransaction.user_id,
         type: 'REIMBURSEMENT_PAYMENT',
         amount: originalTransaction.amount,
@@ -83,7 +84,7 @@ export async function POST(
     }
 
     // Update room fund
-    await updateRoomFund(supabase, params.id);
+    await updateRoomFund(supabase, roomId);
 
     console.log(`Transaction ${transactionId} marked as reimbursed via UPI ${memberUpiId}`);
 

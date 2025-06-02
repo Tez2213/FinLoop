@@ -3,9 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
   request: Request,
-  { params }: { params: { inviteCode: string } }
+  { params }: { params: Promise<{ inviteCode: string }> }
 ) {
-  console.log('API /api/rooms/join/[inviteCode] GET HIT for code:', params.inviteCode);
+  const { inviteCode } = await params;
+  console.log('API /api/rooms/join/[inviteCode] GET HIT for code:', inviteCode);
   
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -20,7 +21,7 @@ export async function GET(
     const { data: inviteData, error: inviteError } = await supabase
       .from('room_invites')
       .select('*')
-      .eq('invite_code', params.inviteCode)
+      .eq('invite_code', inviteCode)
       .single();
 
     if (inviteError || !inviteData) {
@@ -94,9 +95,10 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { inviteCode: string } }
+  { params }: { params: Promise<{ inviteCode: string }> }
 ) {
-  console.log('API /api/rooms/join/[inviteCode] POST HIT for code:', params.inviteCode);
+  const { inviteCode } = await params;
+  console.log('API /api/rooms/join/[inviteCode] POST HIT for code:', inviteCode);
   
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -111,7 +113,7 @@ export async function POST(
     const { data: inviteData, error: inviteError } = await supabase
       .from('room_invites')
       .select('*')
-      .eq('invite_code', params.inviteCode)
+      .eq('invite_code', inviteCode)
       .single();
 
     if (inviteError || !inviteData) {

@@ -3,9 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('API /api/rooms/[id]/transactions GET HIT for room:', params.id);
+  const { id: roomId } = await params;
+  console.log('API /api/rooms/[id]/transactions GET HIT for room:', roomId);
   
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -19,7 +20,7 @@ export async function GET(
     const { data: room, error: roomError } = await supabase
       .from('rooms')
       .select('admin_id')
-      .eq('id', params.id)
+      .eq('id', roomId)
       .single();
 
     if (roomError || !room) {
@@ -34,7 +35,7 @@ export async function GET(
       const { data: memberData, error: memberError } = await supabase
         .from('room_members')
         .select('id')
-        .eq('room_id', params.id)
+        .eq('room_id', roomId)
         .eq('user_id', user.id)
         .single();
 
@@ -47,7 +48,7 @@ export async function GET(
     const { data: transactions, error: transactionError } = await supabase
       .from('transactions')
       .select('*')
-      .eq('room_id', params.id)
+      .eq('room_id', roomId)
       .order('transaction_date', { ascending: false });
 
     if (transactionError) {
@@ -55,7 +56,7 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch transactions' }, { status: 500 });
     }
 
-    console.log(`Found ${transactions?.length || 0} total transactions for room ${params.id}`);
+    console.log(`Found ${transactions?.length || 0} total transactions for room ${roomId}`);
     console.log('Transactions:', transactions); // Debug log
 
     return NextResponse.json({

@@ -3,9 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('API /api/rooms/[id] GET HIT for room:', params.id);
+  const { id: roomId } = await params;
+  console.log('API /api/rooms/[id] GET HIT for room:', roomId);
   
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -20,7 +21,7 @@ export async function GET(
     const { data: roomData, error: roomError } = await supabase
       .from('rooms')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', roomId)
       .single();
 
     if (roomError) {
@@ -32,7 +33,7 @@ export async function GET(
     const { data: membersData, error: membersError } = await supabase
       .from('room_members')
       .select('*')
-      .eq('room_id', params.id);
+      .eq('room_id', roomId);
 
     if (membersError) {
       console.error('Error fetching members:', membersError);

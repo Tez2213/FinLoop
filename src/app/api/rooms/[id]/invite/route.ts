@@ -4,9 +4,10 @@ import { randomBytes } from 'crypto';
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('API /api/rooms/[id]/invite POST HIT for room:', params.id);
+  const { id: roomId } = await params;
+  console.log('API /api/rooms/[id]/invite POST HIT for room:', roomId);
   
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -24,7 +25,7 @@ export async function POST(
     const { data: memberData, error: memberError } = await supabase
       .from('room_members')
       .select('role')
-      .eq('room_id', params.id)
+      .eq('room_id', roomId)
       .eq('user_id', user.id)
       .single();
 
@@ -45,7 +46,7 @@ export async function POST(
     const { data: inviteData, error: inviteError } = await supabase
       .from('room_invites')
       .insert({
-        room_id: params.id,
+        room_id: roomId,
         invite_code: inviteCode,
         created_by: user.id,
         expires_at: expiresAt.toISOString(),

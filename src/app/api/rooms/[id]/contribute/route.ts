@@ -3,9 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('API /api/rooms/[id]/contribute POST HIT for room:', params.id);
+  const { id: roomId } = await params;
+
+  console.log('API /api/rooms/[id]/contribute POST HIT for room:', roomId);
   
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -25,7 +27,7 @@ export async function POST(
     const { data: memberData, error: memberError } = await supabase
       .from('room_members')
       .select('id')
-      .eq('room_id', params.id)
+      .eq('room_id', roomId)
       .eq('user_id', user.id)
       .single();
 
@@ -37,7 +39,7 @@ export async function POST(
     const { data: transaction, error: transactionError } = await supabase
       .from('transactions')
       .insert({
-        room_id: params.id,
+        room_id: roomId,
         user_id: user.id,
         type: 'CONTRIBUTION',
         amount: parseFloat(amount),
@@ -54,7 +56,7 @@ export async function POST(
     }
 
     // Update or create room_fund record
-    await updateRoomFund(supabase, params.id);
+    await updateRoomFund(supabase, roomId);
 
     return NextResponse.json({ 
       message: 'Contribution submitted successfully',

@@ -41,8 +41,8 @@ export async function POST(
       return NextResponse.json({ error: 'Access denied - Only room admin can perform this action' }, { status: 403 });
     }
 
-    // Update the transaction status
-    const { data: transaction, error: updateError } = await supabase
+    // Update the transaction status (cast to any to bypass type checking)
+    const { data: transaction, error: updateError } = await (supabase as any)
       .from('transactions')
       .update({ 
         status: action,
@@ -88,7 +88,7 @@ export async function POST(
 async function updateRoomFund(supabase: any, roomId: string) {
   try {
     // Get all confirmed transactions for this room
-    const { data: transactions, error: transactionError } = await supabase
+    const { data: transactions, error: transactionError } = await (supabase as any)
       .from('transactions')
       .select('type, amount, status')
       .eq('room_id', roomId)
@@ -114,16 +114,16 @@ async function updateRoomFund(supabase: any, roomId: string) {
     const current_balance = total_contributions - total_reimbursements;
 
     // Check if room_fund record exists
-    const { data: existingFund, error: fundFetchError } = await supabase
-      .from('room_fund')
+    const { data: existingFund } = await (supabase as any)
+      .from('room_funds')
       .select('id')
       .eq('room_id', roomId)
       .single();
 
     if (existingFund) {
       // Update existing record
-      const { error: updateError } = await supabase
-        .from('room_fund')
+      const { error: updateError } = await (supabase as any)
+        .from('room_funds')
         .update({
           total_contributions,
           total_reimbursements,
@@ -137,8 +137,8 @@ async function updateRoomFund(supabase: any, roomId: string) {
       }
     } else {
       // Create new record
-      const { error: insertError } = await supabase
-        .from('room_fund')
+      const { error: insertError } = await (supabase as any)
+        .from('room_funds')
         .insert({
           room_id: roomId,
           total_contributions,

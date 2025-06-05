@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script"; // Import the Script component
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Finloop - Split Expenses, Not Friendships",
     description: "Effortlessly manage group expenses with UPI integration",
-    url: "https://finloop.com",
+    url: "https://finloop.vercel.app/", // Make sure this is your actual production URL
     siteName: "Finloop",
     locale: "en_US",
     type: "website",
@@ -32,6 +33,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head> {/* Add the script within the head tag */}
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3743564978461381"
+          crossOrigin="anonymous"
+          strategy="beforeInteractive" // Loads before the page is interactive
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

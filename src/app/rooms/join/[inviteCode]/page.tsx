@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { MailOpen, CheckCircle, XCircle, ArrowRight, LogIn, Loader2, Home } from 'lucide-react'; // Added icons
 
 interface InviteDetails {
   room_id: string;
   room_name: string;
-  room_description: string;
+  room_description: string; // Kept for potential future use, though not displayed in current UI
   inviter_name: string;
   custom_message?: string;
 }
@@ -21,7 +22,7 @@ export default function JoinRoomPage() {
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteDetails, setInviteDetails] = useState<InviteDetails | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null); // Consider using User type from @supabase/supabase-js
 
   const supabase = createClient();
 
@@ -30,43 +31,34 @@ export default function JoinRoomPage() {
   }, [inviteCode]);
 
   const checkAuthAndInvite = async () => {
+    setLoading(true); // Ensure loading is true at the start
     try {
-      // Check if user is authenticated
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError) {
         console.error('Auth error:', authError);
+        // Potentially set an error state here if auth is critical before fetching invite
       }
-
       setCurrentUser(user);
 
-      // Check if the user was just invited (has invitation metadata)
-      if (user && user.user_metadata?.invited_to_room) {
-        console.log('User has invitation metadata:', user.user_metadata);
-        
-        // Use metadata from the invitation
+      if (user && user.user_metadata?.invited_to_room && user.user_metadata.invite_code === inviteCode) {
         setInviteDetails({
           room_id: user.user_metadata.room_id,
           room_name: user.user_metadata.room_name,
-          room_description: '',
+          room_description: user.user_metadata.room_description || '',
           inviter_name: user.user_metadata.inviter_name,
           custom_message: user.user_metadata.custom_message
         });
-        
-        // Auto-join the room if user was just invited
-        if (user.user_metadata.invite_code === inviteCode) {
-          console.log('Auto-joining room from invitation...');
-          await joinRoom(true);
-          return;
-        }
+        await joinRoom(true); // Pass true for autoJoin
+        return; // Exit after auto-join attempt
       }
-
-      // Fetch invite details normally
+      
+      // If not auto-joining, fetch details normally
       await fetchInviteDetails();
       
     } catch (err: any) {
       console.error('Error checking auth and invite:', err);
-      setError(err.message || 'Failed to load invitation');
+      setError(err.message || 'Failed to load invitation details.');
     } finally {
       setLoading(false);
     }
@@ -78,9 +70,8 @@ export default function JoinRoomPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch invite details');
+        throw new Error(data.error || 'Failed to fetch invite details. The link might be invalid or expired.');
       }
-
       setInviteDetails(data);
     } catch (err: any) {
       setError(err.message);
@@ -89,9 +80,9 @@ export default function JoinRoomPage() {
 
   const joinRoom = async (autoJoin = false) => {
     if (!currentUser) {
-      // Redirect to login with invitation info
-      const loginUrl = `/auth/login?redirect=${encodeURIComponent(window.location.pathname)}&invite=${inviteCode}`;
-      router.push(loginUrl);
+      // Store invite code in session/local storage or pass as query param for post-login redirect
+      sessionStorage.setItem('pendingInviteCode', inviteCode);
+      router.push(`/login?redirect=${encodeURIComponent(`/rooms/join/${inviteCode}`)}&reason=join_room`);
       return;
     }
 
@@ -103,131 +94,161 @@ export default function JoinRoomPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // Authorization: `Bearer ${currentUser.token}` // If your API needs auth
         },
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to join room');
+        throw new Error(data.error || 'Failed to join the room. You might already be a member or the invite is no longer valid.');
       }
 
-      // Clear invitation metadata after successful join
       if (currentUser.user_metadata?.invited_to_room) {
         await supabase.auth.updateUser({
           data: {
-            invited_to_room: false,
+            invited_to_room: null, // Use null to remove
             room_id: null,
             room_name: null,
             invite_code: null,
             inviter_name: null,
-            custom_message: null
+            custom_message: null,
+            room_description: null,
           }
         });
       }
-
-      // Success! Redirect to the room
-      router.push(`/rooms/${data.room_id}`);
+      sessionStorage.removeItem('pendingInviteCode'); // Clear pending invite
+      router.push(`/dashboard/rooms/${data.room_id}`); // Navigate to the specific room
 
     } catch (err: any) {
       console.error('Error joining room:', err);
       setError(err.message);
     } finally {
       setJoining(false);
+      if (autoJoin) setLoading(false); // Ensure loading is false after auto-join attempt
     }
   };
 
+  // Loading State
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading invitation...</p>
+          <Loader2 className="h-12 w-12 text-purple-400 animate-spin mx-auto" />
+          <p className="mt-4 text-slate-300 text-lg">Loading Invitation...</p>
         </div>
       </div>
     );
   }
 
+  // Error State
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-md p-6">
-          <div className="text-center">
-            <div className="text-red-500 text-4xl mb-4">❌</div>
-            <h1 className="text-xl font-semibold text-gray-900 mb-2">Invalid Invitation</h1>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-            >
-              Go to Dashboard
-            </button>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-slate-800/70 backdrop-blur-lg border border-red-700/50 rounded-xl shadow-2xl p-6 sm:p-8 text-center">
+          <XCircle className="h-16 w-16 text-red-400 mx-auto mb-6" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-red-300 mb-3">
+            Oops! Invitation Problem
+          </h1>
+          <p className="text-slate-400 mb-8 text-sm sm:text-base">
+            {error}
+          </p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="w-full inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 font-medium transform hover:scale-105"
+          >
+            <Home className="w-5 h-5 mr-2" />
+            Go to Dashboard
+          </button>
         </div>
       </div>
     );
   }
 
+  // No Invite Details Found (after loading and no error)
   if (!inviteDetails) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">No invitation details found.</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-slate-800/70 backdrop-blur-lg border border-purple-700/50 rounded-xl shadow-2xl p-6 sm:p-8 text-center">
+          <MailOpen className="h-16 w-16 text-purple-400 mx-auto mb-6 opacity-70" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 mb-3">
+            Invitation Not Found
+          </h1>
+          <p className="text-slate-400 mb-8 text-sm sm:text-base">
+            We couldn't find any details for this invitation. It might be invalid or expired.
+          </p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="w-full inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 font-medium transform hover:scale-105"
+          >
+            <Home className="w-5 h-5 mr-2" />
+            Go to Dashboard
+          </button>
         </div>
       </div>
     );
   }
 
+  // Main Invite View
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-6">
-        <div className="text-center">
-          <div className="text-green-500 text-4xl mb-4">📨</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-800/70 backdrop-blur-lg border border-purple-700/50 rounded-xl shadow-2xl overflow-hidden">
+        <div className="p-6 sm:p-8 text-center">
+          <MailOpen className="h-16 w-16 text-purple-400 mx-auto mb-6" />
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-3">
             You're Invited!
           </h1>
-          <p className="text-gray-600 mb-6">
-            {inviteDetails.inviter_name} has invited you to join the expense room:
+          <p className="text-slate-300 mb-6 text-sm sm:text-base">
+            <span className="font-semibold text-purple-300">{inviteDetails.inviter_name}</span> wants you to join their expense room:
           </p>
           
-          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-            <h2 className="text-lg font-semibold text-blue-900">
+          <div className="bg-slate-700/50 border border-purple-600/50 rounded-lg p-4 sm:p-5 mb-6 sm:mb-8 text-left">
+            <h2 className="text-xl font-semibold text-slate-100 mb-1">
               {inviteDetails.room_name}
             </h2>
-            {inviteDetails.custom_message && (
-              <div className="mt-3 p-3 bg-white rounded border-l-4 border-blue-500">
-                <p className="text-sm text-gray-700 italic">
-                  "{inviteDetails.custom_message}"
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  - {inviteDetails.inviter_name}
-                </p>
-              </div>
-            )}
+            {/* Room description can be added here if available and desired */}
+            {/* <p className="text-xs text-slate-400">{inviteDetails.room_description}</p> */}
           </div>
 
+          {inviteDetails.custom_message && (
+            <div className="mb-6 sm:mb-8 p-4 bg-slate-700/30 rounded-lg border-l-4 border-purple-500 text-left">
+              <p className="text-sm text-slate-300 italic">
+                "{inviteDetails.custom_message}"
+              </p>
+              <p className="text-xs text-slate-400 mt-2 text-right">
+                - {inviteDetails.inviter_name}
+              </p>
+            </div>
+          )}
+
           {currentUser ? (
-            <div>
-              <p className="text-sm text-gray-600 mb-4">
-                Logged in as: {currentUser.email}
+            <div className="space-y-4">
+              <p className="text-xs text-slate-400">
+                Logged in as: <span className="font-medium text-slate-300">{currentUser.email}</span>
               </p>
               <button
                 onClick={() => joinRoom()}
                 disabled={joining}
-                className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 font-semibold transform hover:scale-105 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {joining ? 'Joining...' : 'Join Room'}
+                {joining ? (
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                )}
+                {joining ? 'Joining Room...' : 'Accept & Join Room'}
               </button>
             </div>
           ) : (
-            <div>
-              <p className="text-sm text-gray-600 mb-4">
-                Please sign in to join this room
+            <div className="space-y-4">
+              <p className="text-sm text-slate-300 mb-2">
+                Sign in to accept this invitation.
               </p>
               <button
-                onClick={() => joinRoom()}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+                onClick={() => joinRoom()} // This will redirect to login
+                className="w-full inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 font-semibold transform hover:scale-105"
               >
+                <LogIn className="w-5 h-5 mr-2" />
                 Sign In to Join
               </button>
             </div>

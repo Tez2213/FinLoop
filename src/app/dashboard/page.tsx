@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { LogOut, UserCircle, Settings, LayoutDashboard, Plus, Eye, Users, Calendar, TrendingUp, DollarSign } from "lucide-react";
+import AdsenseAdUnit from "@/components/AdsenseAdUnit"; // Adjust path if necessary
 
 // Add proper TypeScript interfaces
 interface Room {
@@ -175,6 +176,16 @@ export default async function DashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* AdSense Ad Unit Placement */}
+          <div className="my-8"> {/* Container for the ad, adjust margin as needed */}
+            <AdsenseAdUnit
+              adClient="ca-pub-3743564978461381"
+              adSlot="7538048353" // Use your specific ad slot ID from AdSense
+              className="text-center" // Optional: for centering or other styling
+            />
+          </div>
+          {/* End AdSense Ad Unit Placement */}
 
           {/* Enhanced Dashboard Cards */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

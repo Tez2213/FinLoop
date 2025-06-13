@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Users, Calendar, ExternalLink, Crown, User, Settings, Eye } from "lucide-react";
+import { ArrowLeft, Plus, Users, Calendar, ExternalLink, Crown, User, Settings, Eye, Search, Filter, LayoutGrid, List, LogOut } from "lucide-react"; // Added more icons
 
 // Add proper TypeScript interfaces
 interface Room {
@@ -105,255 +105,233 @@ export default async function MyRoomsPage() {
 
   const totalRooms = createdRoomsWithCounts.length + memberRoomsWithCounts.length;
 
+  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-slate-200">
       {/* Enhanced Navigation */}
-      <nav className="bg-white/80 backdrop-blur-md shadow-lg border-b border-slate-200">
+      <nav className="bg-slate-800/70 backdrop-blur-lg border-b border-purple-700/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
+          <div className="flex items-center justify-between h-20"> {/* Increased height for better spacing */}
+            <div className="flex items-center space-x-3 sm:space-x-4">
               <Link 
                 href="/dashboard"
-                className="flex items-center text-slate-600 hover:text-slate-800 transition-colors group"
+                className="flex items-center text-purple-300 hover:text-purple-200 transition-colors group"
               >
-                <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
-                Back to Dashboard
+                <ArrowLeft className="w-5 h-5 mr-1.5 sm:mr-2 group-hover:-translate-x-1 transition-transform" />
+                <span className="hidden sm:inline">Dashboard</span>
               </Link>
-              <div className="h-6 w-px bg-slate-300"></div>
+              <div className="h-6 w-px bg-purple-700/50"></div>
               <div>
-                <h1 className="text-xl font-semibold text-slate-800">My Rooms</h1>
-                <p className="text-xs text-slate-500">{totalRooms} total rooms</p>
+                <h1 className="text-lg sm:text-xl font-semibold text-slate-100">My Rooms</h1>
+                <p className="text-xs text-slate-400">{totalRooms} total room{totalRooms !== 1 ? 's' : ''}</p>
               </div>
             </div>
             
             <Link 
               href="/rooms/create"
-              className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg"
+              className="flex items-center px-3 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 text-sm font-medium"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Create New Room
+              <Plus className="w-4 h-4 mr-1.5 sm:mr-2" />
+              <span className="hidden sm:inline">New Room</span>
+              <span className="sm:hidden">Add</span>
             </Link>
           </div>
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8 sm:space-y-10">
         {totalRooms > 0 ? (
           <>
-            {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-slate-600">Rooms Created</p>
-                    <p className="text-3xl font-bold text-blue-600">{createdRoomsWithCounts.length}</p>
-                  </div>
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Crown className="w-6 h-6 text-blue-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-slate-600">Member Of</p>
-                    <p className="text-3xl font-bold text-green-600">{memberRoomsWithCounts.length}</p>
-                  </div>
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <User className="w-6 h-6 text-green-600" />
+            {/* Stats Overview - More vibrant */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+              {[
+                { title: "Rooms Created", count: createdRoomsWithCounts.length, Icon: Crown, color: "blue" },
+                { title: "Member Of", count: memberRoomsWithCounts.length, Icon: User, color: "green" },
+                { title: "Total Rooms", count: totalRooms, Icon: Users, color: "purple" }
+              ].map(stat => (
+                <div key={stat.title} className={`bg-slate-800/50 backdrop-blur-md rounded-xl shadow-lg p-5 sm:p-6 border border-purple-700/30 hover:border-purple-600/70 transition-all group`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs sm:text-sm font-medium text-slate-400 group-hover:text-slate-300 transition-colors">{stat.title}</p>
+                      <p className={`text-2xl sm:text-3xl font-bold text-${stat.color}-400 group-hover:text-${stat.color}-300 transition-colors`}>{stat.count}</p>
+                    </div>
+                    <div className={`p-2.5 sm:p-3 bg-gradient-to-br from-${stat.color}-500/20 to-${stat.color}-600/10 rounded-lg group-hover:scale-110 transition-transform`}>
+                      <stat.Icon className={`w-5 h-5 sm:w-6 sm:h-6 text-${stat.color}-400`} />
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-slate-600">Total Rooms</p>
-                    <p className="text-3xl font-bold text-purple-600">{totalRooms}</p>
-                  </div>
-                  <div className="p-3 bg-purple-100 rounded-lg">
-                    <Users className="w-6 h-6 text-purple-600" />
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
 
             {/* Created Rooms Section */}
             {createdRoomsWithCounts.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Crown className="w-5 h-5 text-blue-600" />
+              <section>
+                <div className="flex items-center justify-between mb-5 sm:mb-6">
+                  <div className="flex items-center space-x-2.5 sm:space-x-3">
+                    <div className="p-2 bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-lg">
+                      <Crown className="w-5 h-5 text-blue-400" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-slate-800">Rooms I Created</h2>
-                      <p className="text-slate-500">You are the admin of these rooms</p>
+                      <h2 className="text-xl sm:text-2xl font-bold text-slate-100">Rooms I Created</h2>
+                      <p className="text-xs sm:text-sm text-slate-400">You are the admin of these rooms</p>
                     </div>
                   </div>
-                  <span className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full font-medium">
-                    {createdRoomsWithCounts.length} room{createdRoomsWithCounts.length !== 1 ? 's' : ''}
+                  <span className="bg-blue-500/20 text-blue-300 text-xs sm:text-sm px-2.5 py-1 rounded-full font-medium">
+                    {createdRoomsWithCounts.length}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                   {createdRoomsWithCounts.map((room) => (
-                    <div key={room.id} className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 border border-slate-200 overflow-hidden group">
-                      <div className="p-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <h3 className="text-lg font-semibold text-slate-800 truncate">
-                                {room.name}
-                              </h3>
-                              <span title="Room Admin">
-                                <Crown className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                              </span>
-                            </div>
-                            {room.description && (
-                              <p className="text-slate-600 text-sm line-clamp-2 mb-3">
-                                {room.description}
-                              </p>
-                            )}
-                          </div>
+                    <div key={room.id} className="bg-slate-800/60 backdrop-blur-md rounded-xl shadow-lg hover:shadow-purple-500/20 transition-all duration-300 border border-purple-700/40 group overflow-hidden flex flex-col">
+                      <div className="p-5 sm:p-6 flex-grow">
+                        <div className="flex items-start justify-between mb-3">
+                          <h3 className="text-lg font-semibold text-slate-100 group-hover:text-purple-300 transition-colors truncate pr-2">
+                            {room.name}
+                          </h3>
+                          <span title="Room Admin" className="p-1.5 bg-blue-500/20 rounded-md flex-shrink-0">
+                            <Crown className="w-4 h-4 text-blue-400" />
+                          </span>
                         </div>
-
-                        <div className="flex items-center justify-between text-sm text-slate-500 mb-4">
+                        {room.description && (
+                          <p className="text-slate-400 text-sm line-clamp-2 mb-3 sm:mb-4">
+                            {room.description}
+                          </p>
+                        )}
+                        
+                        <div className="flex items-center justify-between text-xs sm:text-sm text-slate-500 mb-4 sm:mb-5">
                           <div className="flex items-center">
-                            <Users className="w-4 h-4 mr-1" />
+                            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
                             <span>{room.memberCount} member{room.memberCount !== 1 ? 's' : ''}</span>
                           </div>
                           <div className="flex items-center">
-                            <Calendar className="w-4 h-4 mr-1" />
-                            <span>{new Date(room.created_at).toLocaleDateString()}</span>
+                            <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
+                            <span>{formatDate(room.created_at)}</span>
                           </div>
                         </div>
-
-                        <div className="flex space-x-2">
+                      </div>
+                      <div className="border-t border-purple-700/30 p-3 sm:p-4 bg-slate-800/40">
+                        <div className="flex space-x-2 sm:space-x-3">
                           <Link
-                            href={`/rooms/${room.id}`}
-                            className="flex-1 flex items-center justify-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                            href={`/rooms/${room.id}/settings`} // Assuming settings page
+                            className="flex-1 flex items-center justify-center px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-md transition-all text-xs sm:text-sm font-medium transform hover:scale-105"
                           >
-                            <Settings className="w-4 h-4 mr-2" />
+                            <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                             Manage
                           </Link>
                           <Link
                             href={`/rooms/${room.id}`}
-                            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-2 text-slate-400 hover:text-purple-300 bg-slate-700/50 hover:bg-purple-600/30 rounded-md transition-colors"
                             title="View Room"
                           >
-                            <ExternalLink className="w-4 h-4" />
+                            <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
                           </Link>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
 
             {/* Member Rooms Section */}
             {memberRoomsWithCounts.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <User className="w-5 h-5 text-green-600" />
+              <section>
+                <div className="flex items-center justify-between mb-5 sm:mb-6">
+                  <div className="flex items-center space-x-2.5 sm:space-x-3">
+                    <div className="p-2 bg-gradient-to-br from-green-500/20 to-green-600/10 rounded-lg">
+                      <User className="w-5 h-5 text-green-400" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-slate-800">Rooms I'm In</h2>
-                      <p className="text-slate-500">You are a member of these rooms</p>
+                      <h2 className="text-xl sm:text-2xl font-bold text-slate-100">Rooms I'm In</h2>
+                      <p className="text-xs sm:text-sm text-slate-400">You are a member of these rooms</p>
                     </div>
                   </div>
-                  <span className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full font-medium">
-                    {memberRoomsWithCounts.length} room{memberRoomsWithCounts.length !== 1 ? 's' : ''}
+                  <span className="bg-green-500/20 text-green-300 text-xs sm:text-sm px-2.5 py-1 rounded-full font-medium">
+                    {memberRoomsWithCounts.length}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                   {memberRoomsWithCounts.map((room) => (
-                    <div key={room.id} className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 border border-slate-200 overflow-hidden group">
-                      <div className="p-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <h3 className="text-lg font-semibold text-slate-800 truncate">
-                                {room.name}
-                              </h3>
-                              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                                {room.role}
-                              </span>
-                            </div>
-                            {room.description && (
-                              <p className="text-slate-600 text-sm line-clamp-2 mb-3">
-                                {room.description}
-                              </p>
-                            )}
-                          </div>
+                    <div key={room.id} className="bg-slate-800/60 backdrop-blur-md rounded-xl shadow-lg hover:shadow-purple-500/20 transition-all duration-300 border border-purple-700/40 group overflow-hidden flex flex-col">
+                      <div className="p-5 sm:p-6 flex-grow">
+                        <div className="flex items-start justify-between mb-3">
+                          <h3 className="text-lg font-semibold text-slate-100 group-hover:text-purple-300 transition-colors truncate pr-2">
+                            {room.name}
+                          </h3>
+                          <span className="bg-green-500/20 text-green-300 text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                            {room.role}
+                          </span>
                         </div>
-
-                        <div className="flex items-center justify-between text-sm text-slate-500 mb-4">
+                        {room.description && (
+                          <p className="text-slate-400 text-sm line-clamp-2 mb-3 sm:mb-4">
+                            {room.description}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between text-xs sm:text-sm text-slate-500 mb-4 sm:mb-5">
                           <div className="flex items-center">
-                            <Users className="w-4 h-4 mr-1" />
+                            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
                             <span>{room.memberCount} member{room.memberCount !== 1 ? 's' : ''}</span>
                           </div>
                           <div className="flex items-center">
-                            <Calendar className="w-4 h-4 mr-1" />
-                            <span>Joined {new Date(room.joined_at).toLocaleDateString()}</span>
+                            <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
+                            <span>Joined {formatDate(room.joined_at)}</span>
                           </div>
                         </div>
-
-                        <div className="flex space-x-2">
+                      </div>
+                      <div className="border-t border-purple-700/30 p-3 sm:p-4 bg-slate-800/40">
+                        <div className="flex space-x-2 sm:space-x-3">
                           <Link
                             href={`/rooms/${room.id}`}
-                            className="flex-1 flex items-center justify-center px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
+                            className="flex-1 flex items-center justify-center px-3 py-2 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white rounded-md transition-all text-xs sm:text-sm font-medium transform hover:scale-105"
                           >
-                            <Eye className="w-4 h-4 mr-2" />
+                            <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                             View Room
                           </Link>
-                          <Link
-                            href={`/rooms/${room.id}`}
-                            className="p-2 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="Open Room"
+                           <Link
+                            href={`/rooms/${room.id}/leave`} // Example leave action
+                            className="p-2 text-slate-400 hover:text-red-400 bg-slate-700/50 hover:bg-red-600/30 rounded-md transition-colors"
+                            title="Leave Room" // Add a leave room functionality if needed
                           >
-                            <ExternalLink className="w-4 h-4" />
+                            <LogOut className="w-4 h-4 sm:w-5 sm:h-5" /> 
                           </Link>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
           </>
         ) : (
-          <div className="text-center py-16">
-            <div className="max-w-md mx-auto">
-              <div className="bg-white rounded-xl shadow-lg p-12 border border-slate-200">
-                <div className="text-slate-400 mb-6">
-                  <Users className="w-20 h-20 mx-auto" />
+          <div className="flex items-center justify-center min-h-[calc(100vh-10rem)] sm:min-h-[calc(100vh-12rem)]">
+            <div className="text-center max-w-lg mx-auto">
+              <div className="bg-slate-800/60 backdrop-blur-md rounded-2xl shadow-xl p-8 sm:p-12 border border-purple-700/50">
+                <div className="text-purple-400 mb-6">
+                  <Users className="w-16 h-16 sm:w-20 sm:h-20 mx-auto opacity-70" />
                 </div>
-                <h3 className="text-2xl font-bold text-slate-800 mb-3">
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-100 mb-3">
                   No Rooms Yet
                 </h3>
-                <p className="text-slate-600 mb-8 leading-relaxed">
-                  Create your first expense room to start managing group finances with your friends, family, or colleagues. 
-                  You can also join existing rooms using an invite link.
+                <p className="text-slate-400 mb-8 leading-relaxed text-sm sm:text-base">
+                  Create your first expense room or join one to start managing group finances with ease.
                 </p>
-                <div className="space-y-3">
+                <div className="space-y-3 sm:space-y-4">
                   <Link 
                     href="/rooms/create"
-                    className="w-full inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                    className="w-full inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 font-medium transform hover:scale-105"
                   >
                     <Plus className="w-5 h-5 mr-2" />
                     Create Your First Room
                   </Link>
                   <Link 
                     href="/dashboard"
-                    className="w-full inline-flex items-center justify-center px-6 py-3 text-slate-600 hover:text-slate-800 transition-colors"
+                    className="w-full inline-flex items-center justify-center px-6 py-3 text-purple-300 hover:text-purple-200 hover:bg-purple-600/20 rounded-lg transition-colors"
                   >
+                    <ArrowLeft className="w-5 h-5 mr-2" />
                     Back to Dashboard
                   </Link>
                 </div>

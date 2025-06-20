@@ -103,7 +103,7 @@ export default function ReimbursementPage() {
     setError(null);
     if (!transaction) return;
 
-    const upiUrl = `upi://pay?pa=${memberUpiId.trim()}&pn=${encodeURIComponent(transaction.user_name || 'Member')}&am=${transaction.amount}&cu=INR&tn=${encodeURIComponent(`Reimbursement for ${transaction.notes || 'Room Expense'}`)}`;
+    const upiUrl = `upi://pay?pa=${memberUpiId.trim()}&pn=${encodeURIComponent(transaction.user_name || 'Member')}&am=${transaction.amount}&cu=INR`;
     
     // Attempt to open UPI app
     window.open(upiUrl, '_blank'); 

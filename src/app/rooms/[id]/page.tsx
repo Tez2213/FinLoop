@@ -750,7 +750,7 @@ The user should receive an email shortly.
                     <textarea rows={2} placeholder="e.g., My share for dinner" value={contributionForm.notes} onChange={(e) => setContributionForm({ ...contributionForm, notes: e.target.value })} className="w-full px-3 py-2.5 bg-slate-700/50 border border-purple-600/50 rounded-lg text-slate-200 placeholder-slate-500 focus:ring-2 focus:ring-green-500 focus:border-green-500"/>
                   </div>
                   {parseFloat(contributionForm.amount) > 0 && (
-                    <button onClick={() => { const upiUrl = `upi://pay?pa=${room.admin_upi_id}&pn=${encodeURIComponent(room.name)}&am=${contributionForm.amount}&cu=INR&tn=${encodeURIComponent(contributionForm.notes || 'Fund contribution')}`; window.open(upiUrl, '_blank'); }} className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all text-sm font-medium transform hover:scale-105">
+                    <button onClick={() => { const upiUrl = `upi://pay?pa=${room.admin_upi_id}&pn=${encodeURIComponent(room.name)}&am=${contributionForm.amount}&cu=INR`; window.open(upiUrl, '_blank'); }} className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all text-sm font-medium transform hover:scale-105">
                       <ExternalLink className="w-4 h-4 mr-2" /> Open UPI App to Pay ₹{contributionForm.amount}
                     </button>
                   )}

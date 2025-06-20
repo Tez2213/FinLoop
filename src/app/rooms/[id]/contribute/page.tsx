@@ -125,7 +125,7 @@ export default function ContributePage() {
       return;
     }
     setError(null); // Clear previous errors
-    const upiUrl = `upi://pay?pa=${room.admin_upi_id}&pn=${encodeURIComponent(room.name || 'Room Fund')}&am=${contributionForm.amount}&cu=INR&tn=${encodeURIComponent(`Room: ${room.name} - ${contributionForm.notes || 'Fund contribution'}`)}`;
+    const upiUrl = `upi://pay?pa=${room.admin_upi_id}&pn=${encodeURIComponent(room.name || 'Room Fund')}&am=${contributionForm.amount}&cu=INR`;
     window.open(upiUrl, '_blank');
   };
   
